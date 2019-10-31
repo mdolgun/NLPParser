@@ -46,6 +46,7 @@ struct Parser {
 	void print_parse_dot(ostream& os, unordered_set<Edge>&completed, Edge& parent_edge);
 	void print_parse_dot(ostream& os);
 	void print_parse_dot_all(ostream& os);
+	void print_parse_dot_all(string fname);
 	void print_graph(ostream& os, int inlen, vector<unordered_set<int>>& act_states, vector<unordered_set<Edge>>& act_edges);
 	void print_parse_tree(Edge& top_edge);
 	TreeNode* make_tree_shared(unordered_map<tuple<int, int, int>, TreeNode*>&visited, Edge& edge);

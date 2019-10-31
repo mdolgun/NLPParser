@@ -2,25 +2,45 @@
 #include "parser.h"
 
 void test_ambig() {
-	Parser parser;
-	parser.load_grammar("test/ambig.grm");
-	parser.compile();
-	ofstream dfa("ambig_dfa.dot");
-	parser.print_dfa_dot(dfa);
 	try {
-		parser.parse("people like heroes like people");
-		ofstream parse("ambig_parse.dot");
-		parser.print_parse_dot_all(parse);
-		//ofstream graph("ambig_graph.dot");
-		//parser.print_graph(graph);
+		Parser parser;
+		parser.load_grammar("test/ambig.grm"); // load the grammar from the file
+		parser.compile(); // create DFA and other internal tables from the grammar
+	
+		parser.parse("people like heroes like people"); // parse the sentence
+		parser.print_parse_dot_all("ambig_parse.dot"); // write parse tables to a file in a GraphViz format
+		auto tree = parser.make_tree(true); // generate parse tree from internal tables
+		dot_print("ambig_tree.dot", tree); // write parse tree to a file in a GraphViz format
 	}
-	catch (UnifyError&) {
-		cout << "UnifyError" << nl;
+	catch (GrammarError&) { // input grammar cannot be parsed
+		cout << "GrammarError" << endl;
 	}
-	catch (ParseError&) {
-		cout << "ParseError" << nl;
+	catch (ParseError&) { // sentence cannot be parsed
+		cout << "ParseError" << endl;
 	}
 }
+void test_ambig_trans() {
+	try {
+		Parser parser;
+		parser.load_grammar("test/ambig_trans.grm"); // load the grammar from the file
+		parser.compile(); // create DFA and other internal tables from the grammar
+
+		parser.parse("people like heroes like people"); // parse the sentence
+
+		auto tree = parser.make_tree(true); // generate parse tree from internal tables
+		tree = parser.translate_tree(tree, true); // translate the tree
+		dot_print("ambig_trans_tree.dot", tree, true, true); // write translated parse tree to a file in a GraphViz format
+		for (auto& s : enumerate(tree)) // enumerate all possible output sentences
+			cout << s << endl;
+	}
+	catch (GrammarError&) { // input grammar cannot be parsed
+		cout << "GrammarError" << endl;
+	}
+	catch (ParseError&) { // sentence cannot be parsed
+		cout << "ParseError" << endl;
+	}
+}
+
 
 void test() {
 	Parser parser;
@@ -101,8 +121,7 @@ int main()
 	//SetConsoleOutputCP(1254);
 	SetConsoleOutputCP(65001);
 #endif
-	debug = 2;
-	test_ambig();
+	test_ambig_trans();
 	cout.sync_with_stdio(false); // for performance increase
 								 //test_tree("test/trans_case.grm", "i saw a car", "test/trans_case_sh", true);
 								 //test_tree("test/trans_case.grm", "i saw a car", "test/trans_case", false);

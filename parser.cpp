@@ -69,11 +69,8 @@ void Parser::print_stateset(ostream& os,StateSet& stateset) {
 		else
 			os << ", ";
 		os << *rule->head << "->";
-		
-		//join(os, rule->left->cbegin(), rule->left->cbegin()+p.second, " ");
 		print_partial_rule(os, rule, 0, p.second);
 		os << ".";
-		//join(os, rule->left->cbegin()+p.second, rule->left->cend(), " ");
 		print_partial_rule(os, rule, p.second, -1);
 	}
 	os << "}";
@@ -82,11 +79,9 @@ void Parser::print_stateset(ostream& os,StateSet& stateset) {
 void Parser::print_state(ostream& os,int ruleno, int rulepos) {
 	Rule* rule = get_rule(ruleno);
 	os << symbol_table.get(rule->head->id) << "->";
-	//join(os, rule->left->cbegin(), rule->left->cbegin() + rulepos, " ");
 	print_partial_rule(os, rule, 0, rulepos);
 	os << ".";
 	print_partial_rule(os, rule, rulepos, -1);
-	//join(os, rule->left->cbegin() + rulepos, rule->left->cend(), " ");
 }
 
 void Parser::print_dfa(ostream& os,bool csv) {
@@ -299,17 +294,24 @@ void Parser::print_parse_dot_all(ostream& os) {
 	os << "}\n";
 }
 
-ostream& operator<<(ostream& os, const vector<FeatList>& flist_vec) {
-	bool first = true;
-	for (auto& flist : flist_vec) {
-		if (first)
-			first = false;
-		else
-			os << '|';
-		os << flist;
-	}
-	return os;
+void Parser::print_parse_dot_all(string fname) {
+	ofstream os(fname);
+	if (!os)
+		throw runtime_error("Cannot write file: " + fname);
+	print_parse_dot_all(os);
 }
+
+//ostream& operator<<(ostream& os, const vector<FeatList>& flist_vec) {
+//	bool first = true;
+//	for (auto& flist : flist_vec) {
+//		if (first)
+//			first = false;
+//		else
+//			os << '|';
+//		os << flist;
+//	}
+//	return os;
+//}
 constexpr int indent_size = 4;
 void Parser::print_parse(ostream& os, Edge& top_edge, int level,int indent_size,bool extended) {
 	indent(os, level * indent_size);

@@ -4,7 +4,7 @@
 #define CHANGE_CODEPAGE
 #endif
 
-#define DEBUG
+//#define DEBUG
 
 #include <string>
 #include <vector>
