@@ -29,7 +29,7 @@ void test_ambig_trans() {
 
 		auto tree = parser.make_tree(true); // generate parse tree from internal tables
 		tree = parser.translate_tree(tree, true); // translate the tree
-		dot_print("ambig_trans_tree.dot", tree, true, true); // write translated parse tree to a file in a GraphViz format
+		dot_print("ambig_trans_tree.dot", tree, false, true); // write translated parse tree to a file in a GraphViz format
 		for (auto& s : enumerate(tree)) // enumerate all possible output sentences
 			cout << s << endl;
 	}
