@@ -1,6 +1,27 @@
 #include "stdafx.h"
 #include "parser.h"
 
+void test_ambig() {
+	Parser parser;
+	parser.load_grammar("test/ambig.grm");
+	parser.compile();
+	ofstream dfa("ambig_dfa.dot");
+	parser.print_dfa_dot(dfa);
+	try {
+		parser.parse("people like heroes like people");
+		ofstream parse("ambig_parse.dot");
+		parser.print_parse_dot_all(parse);
+		//ofstream graph("ambig_graph.dot");
+		//parser.print_graph(graph);
+	}
+	catch (UnifyError&) {
+		cout << "UnifyError" << nl;
+	}
+	catch (ParseError&) {
+		cout << "ParseError" << nl;
+	}
+}
+
 void test() {
 	Parser parser;
 	parser.load_grammar("test/trans_case.grm");
@@ -80,6 +101,8 @@ int main()
 	//SetConsoleOutputCP(1254);
 	SetConsoleOutputCP(65001);
 #endif
+	debug = 2;
+	test_ambig();
 	cout.sync_with_stdio(false); // for performance increase
 								 //test_tree("test/trans_case.grm", "i saw a car", "test/trans_case_sh", true);
 								 //test_tree("test/trans_case.grm", "i saw a car", "test/trans_case", false);
@@ -88,8 +111,8 @@ int main()
 								 //test_tree("test/simple_trans.grm", "i saw the man in the house with the telescope", "test/simple_trans", false, false, true);
 								 //test_tree("test/simple_trans_feat.grm", "i saw the man in the house", "test/simple_trans_feat_sh", true, true, true);
 								 //test_tree("test/simple_trans_feat.grm", "i saw the man in the house", "test/simple_trans_feat", false, true, true);
-	test_tree("test/ambig_trans.grm", "people like heroes like people", "test/ambig_trans_sh", true, true, true);
-	test_tree("test/ambig_trans.grm", "people like heroes like people", "test/ambig_trans", false, true, true);
+	//test_tree("test/ambig_trans.grm", "people like heroes like people", "test/ambig_trans_sh", true, true, true);
+	//test_tree("test/ambig_trans.grm", "people like heroes like people", "test/ambig_trans", false, true, true);
 	//test_dir();
 	//test_case();
 	//debug_mem = 1;

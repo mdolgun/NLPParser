@@ -26,12 +26,12 @@ void Parser::load_grammar(const char* fname) {
 	grammar.load_grammar(fname, rules, root);
 	if (debug >= 1) {
 		cout << "Rules:" << nl;
-		format_rules(cout);
+		print_rules(cout);
 	}
 
 }
 
-void Parser::format_rules(ostream& os) {
+void Parser::print_rules(ostream& os) {
 	for (int i = 0; i < rules.size(); i++) {
 		os << i << ':' << *rules[i] << nl;
 	}
@@ -52,8 +52,8 @@ void print_partial_rule(ostream& os, Rule* rule, int start_pos, int end_pos) {
 	auto end = end_pos == -1 ? rule->left->end() : rule->left->begin() + end_pos;
 	for (auto ptr = start; ptr != end; ++ptr) {
 		if (ptr != start)
-			cout << ' ';
-		cout << (*ptr)->name;
+			os << ' ';
+		os << (*ptr)->name;
 	}
 }
 
@@ -245,35 +245,6 @@ void Parser::compile() {
 	}
 }
 
-//void Parser::print_parse_dot(ostream& os,unordered_set<Edge>&visited,Edge& edge) {
-//	if (visited.count(edge))
-//		return;
-//	visited.insert(edge);
-//	int symbol = get<2>(edge);
-//	os << "\"" << edge << "\"[label=\"" << symbol_table.get(symbol) << "\"];\n";
-//	if (!symbol_table.nonterminal(symbol)) {
-//		return;
-//	}
-//	auto& edge_seq_list = edges[edge];
-//	bool multiple = edge_seq_list.size() > 1;
-//	for (int i = 0; i < edge_seq_list.size(); i++) {
-//		if (multiple) {
-//			os << "\"" << edge << "_" << i << "\"[label=\"" << symbol_table.get(symbol) << "\",color=red];\n";
-//			os << "\"" << edge << "\"->\"" << edge << "_" << i << "\"[color=red];\n";
-//		}
-//
-//		auto& edge_seq = get<1>(edge_seq_list[i]);
-//		for (auto& sub_edge : edge_seq) {
-//			if (multiple) {
-//				os << "  \"" << edge << "_" << i << "\"->\"" << sub_edge << "\";\n";
-//			}
-//			else {
-//				os << "  \"" << edge << "\"->\"" << sub_edge << "\";\n";
-//			}
-//			print_parse_dot(os, visited, sub_edge);
-//		}
-//	}
-//}
 void Parser::print_parse_dot(ostream& os, unordered_set<Edge>&visited, Edge& edge) {
 	if (visited.count(edge))
 		return;
@@ -297,44 +268,10 @@ void Parser::print_parse_dot(ostream& os, unordered_set<Edge>&visited, Edge& edg
 void Parser::print_parse_dot(ostream& os) { 
 	unordered_set<Edge> completed; 
 	os << "digraph {\n";
-	os << "graph[ordering=out];\n";
+	os << "graph[ordering=out]\n";
 	print_parse_dot(os, completed, top_edge);
 	os << "}\n";
 }
-
-//void Parser::print_parse_dot_all(ostream& os) {
-//	os << "digraph {\n";
-//	os << "graph[ordering=out]\n";
-//
-//	for (auto& [edge, edge_seq_list] : edges) {
-//		int symbol = get<2>(edge);
-//		os << "\"" << edge << "\"[label=\"" << symbol_table.get(symbol) << "\"]\n";
-//		//if (!symbol_table.nonterminal(symbol)) {
-//		//	continue;
-//		//}
-//		bool multiple = edge_seq_list.size() > 1;
-//		for (int i = 0; i < edge_seq_list.size(); i++) {
-//			if (multiple) {
-//				os << "\"" << edge << "_" << i << "\"[label=\"" << symbol_table.get(symbol) << "\",color=red]\n";
-//				os << "\"" << edge << "\"->\"" << edge << "_" << i << "\"[color=red]\n";
-//			}
-//			auto& edge_seq = get<1>(edge_seq_list[i]);
-//			for (auto& sub_edge : edge_seq) {
-//				if (multiple) {
-//					os << "  \"" << edge << "_" << i << "\"->\"" << sub_edge << "\"\n";
-//				}
-//				else {
-//					os << "  \"" << edge << "\"->\"" << sub_edge << "\"\n";
-//				}
-//				int sub_symbol = get<2>(sub_edge);
-//				if (!symbol_table.nonterminal(sub_symbol)) {
-//					os << "  \"" << sub_edge << "\"[label=\"" << symbol_table.get(sub_symbol) << "\"]\n";
-//				}
-//			}
-//		}
-//	}
-//	os << "}\n";
-//}
 
 void Parser::print_parse_dot_all(ostream& os) {
 	os << "digraph {\n";
@@ -342,10 +279,13 @@ void Parser::print_parse_dot_all(ostream& os) {
 
 	for (auto&[edge, edge_seq_list] : edges) {
 		int symbol = get<2>(edge);
-		os << "\"" << edge << "\"[label=\"" << symbol_table.get(symbol) << "[" << get<0>(edge) << ":" << get<3>(edge) << "]\"]\n";
+		if (edge == top_edge)
+			os << "\"" << edge << "\"[label=\"" << symbol_table.get(symbol) << "[" << get<0>(edge) << ":" << get<3>(edge) << "]\",style=bold]\n";
+		else
+			os << "\"" << edge << "\"[label=\"" << symbol_table.get(symbol) << "[" << get<0>(edge) << ":" << get<3>(edge) << "]\"]\n";
 		for (int i = 0; i < edge_seq_list.size(); i++) {
-			os << "\"" << edge << "_" << i << "\"[label=\"" << symbol_table.get(symbol) << "\",color=red]\n";
-			os << "\"" << edge << "\"->\"" << edge << "_" << i << "\"[color=red]\n";
+			os << "\"" << edge << "_" << i << "\"[label=\"#" << get<0>(edge_seq_list[i])->id << "\"]\n";
+			os << "\"" << edge << "\"->\"" << edge << "_" << i << "\"\n";
 			auto& edge_seq = get<1>(edge_seq_list[i]);
 			for (auto& sub_edge : edge_seq) {
 				os << "  \"" << edge << "_" << i << "\"->\"" << sub_edge << "\"\n";
@@ -437,21 +377,21 @@ void Parser::print_parse(ostream& os, Edge& top_edge, int level,int indent_size,
 	os << ")";
 }
 
-void Parser::print_dfa_graph(ostream& os) {
+void Parser::print_dfa_dot(ostream& os) {
 	os << "digraph {" << nl;
 	for (int state = 0; state < dfa.size(); state++) {
 		os << "  " << state << "[label=\"";
 		for (auto[ruleno, rulepos] : reduce[state]) {
-			print_state(cout, ruleno, rulepos);
+			print_state(os, ruleno, rulepos);
 			os << "\\n";
 		}
 		for (auto[ruleno, rulepos] : ereduce[state]) {
-			print_state(cout, ruleno, rulepos);
+			print_state(os, ruleno, rulepos);
 			os << "\\n";
 		}
-		os << "\"];\n";
+		os << "\"]\n";
 		for (auto[symbol, next_state] : dfa[state]) {
-			os << "  " << state << "->" << next_state << "[label=\"" << symbol_table.get(symbol) << "\"];\n";
+			os << "  " << state << "->" << next_state << "[label=\"" << symbol_table.get(symbol) << "\"]\n";
 		}
 	}
 	os << "}" << nl;
@@ -470,15 +410,15 @@ void Parser::print_graph(ostream& os,int inlen, vector<unordered_set<int>>& act_
 				print_state(os, ruleno, rulepos);
 				os << "\\n";
 			}
-			os << "\"];\n";
+			os << "\"]\n";
 		}
 		os << "  }\n";
 		for (auto& edge : act_edges[i]) {
-			os << "  \"" << get<0>(edge) << "," << get<1>(edge) << "\"->\"" << get<3>(edge) << "," << get<4>(edge) << "\"[label=\"" << symbol_table.get(get<2>(edge)) << "\"];\n";
+			os << "  \"" << get<0>(edge) << "," << get<1>(edge) << "\"->\"" << get<3>(edge) << "," << get<4>(edge) << "\"[label=\"" << symbol_table.get(get<2>(edge)) << "\"]\n";
 		}
 	}
 	for (auto&[edge, value] : edges) {
-		os << "  \"" << get<0>(edge) << "," << get<1>(edge) << "\"->\"" << get<3>(edge) << "," << get<4>(edge) << "\"[label=\"" << symbol_table.get(get<2>(edge)) << "\"];\n";
+		os << "  \"" << get<0>(edge) << "," << get<1>(edge) << "\"->\"" << get<3>(edge) << "," << get<4>(edge) << "\"[label=\"" << symbol_table.get(get<2>(edge)) << "\"]\n";
 	}
 	os << "}\n";
 }
@@ -792,8 +732,10 @@ void Parser::parse(string input_str) {
 		}
 		if (pos == inlen) { // all the words are consumed
 			if (active.find(final_state) != active.end()) {// if final state is in the active states, the parse is successfull
-				if(debug >= 1)
+				if (debug >= 1)
 					cout << "Parse successfull" << nl;
+				if (debug >= 2)
+					print_graph(cout, inlen, act_states, act_edges);
 				return;
 			}
 			else {
@@ -852,10 +794,6 @@ void Parser::parse(string input_str) {
 			char_pos++; // skip space
 	}
 	throw ParseError("No Active State Left");
-	//print_parse(cout, top_edge, 0, 4, false);
-	//print_parse(cout, top_edge); cout << nl;
-	//print_graph(cout, inlen, act_states, act_edges);
-	//print_parse_dot(cout);
 }
 
 string UnitTest::get_lines(ifstream& is, stringstream& ref) {
@@ -906,7 +844,7 @@ void UnitTest::test_case(const char* fname) {
 			GrammarParser gparser;
 			gparser.parse_grammar(grammar, parser->rules, parser->root);
 			if (debug >= 1)
-				parser->format_rules(cout);
+				parser->print_rules(cout);
 			parser->compile();
 		}
 		else if (command == "###input") {

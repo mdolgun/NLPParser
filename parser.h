@@ -35,12 +35,12 @@ struct Parser {
 	void persist(ofstream& os);
 	void load_grammar(const char* fname);
 	void closure(StateSet& stateset);
-	void format_rules(ostream& os);
+	void print_rules(ostream& os);
 	void print_stateset(ostream& os, StateSet& stateset);
 	void print_state(ostream& os, int ruleno, int rulepos);
 	void compile();
 	void print_dfa(ostream& os, bool csv = false);
-	void print_dfa_graph(ostream& os);
+	void print_dfa_dot(ostream& os);
 	void parse(string input);
 	void print_parse(ostream& os, Edge& parent_edge, int level = 0, int indent_size = 0, bool extended = false);
 	void print_parse_dot(ostream& os, unordered_set<Edge>&completed, Edge& parent_edge);
