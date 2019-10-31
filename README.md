@@ -13,6 +13,8 @@ It can be used to parse and visualize highly ambigous grammars:
 
 Above grammar can be parsed, and shared&packed parse forest can be visualized using the following code: 
 
+.. code:: cpp
+
 	Parser parser;
 	parser.load_grammar("test/ambig.grm");
 	parser.compile();
@@ -29,6 +31,7 @@ Above grammar can be parsed, and shared&packed parse forest can be visualized us
 	}
 The output would be:
 
-Natural Language Parser which handles ambiguous grammars
-Unification Engine which handles unification of features
-Translation Engine for Syntax-Based Translation of Natural Languages
+
+* Natural Language Parser which handles ambiguous grammars
+* Unification Engine which handles unification of features
+* Translation Engine for Syntax-Based Translation of Natural Languages
