@@ -88,4 +88,6 @@ kahramanlar gibi insanlar insanları sever
 insanlar insanlar gibi kahramanları sever
 insanlar kahramanların insanları sevmesini sever
 ```
+Of course, these are oversimplified examples. However, when feature unification, morphology and dictionaries comes into the picture it can be quite powerful tool.
 
+Currently the project is a Proof of Concept for Syntax-based translation. But further improvements are planned.
