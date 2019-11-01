@@ -1,0 +1,5 @@
+S -> NP VP
+NP -> people | heroes
+NP -> NP like NP
+VP -> like NP
+VP -> like S

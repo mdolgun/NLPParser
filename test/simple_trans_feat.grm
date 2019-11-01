@@ -1,0 +1,16 @@
+# this is an EN-TR translation version of the simple grammar
+S -> NP VP : NP VP
+
+VP -> VP PP() : PP(type=vc) VP
+NP -> NP PP() : PP(type=nc) NP
+
+VP -> saw NP : NP -ı gördüm
+NP -> i : 
+NP -> the man : adam
+NP -> the telescope : teleskop
+NP -> the house : ev
+
+PP -> in NP   : NP -de   [type=vc]
+PP -> in NP   : NP -deki [type=nc]
+PP -> with NP : NP -la   [type=vc]
+PP -> with NP : NP -lu   [type=nc]

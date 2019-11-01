@@ -1,0 +1,6 @@
+S -> NP VP : NP VP -er
+NP -> people : insanlar
+NP -> heroes : kahramanlar
+NP -> NP-1 like NP-2 : NP-2 gibi NP-1 
+VP -> like NP : NP -ı sev
+VP -> like NP VP : NP -ın VP -mesini sev

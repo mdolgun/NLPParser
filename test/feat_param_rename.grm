@@ -1,0 +1,5 @@
+S -> A(g=*f) : B(h=*f)
+A -> a [g=a]
+A -> b [g=b]
+B -> : a [h=a]
+B -> : b [h=b]
