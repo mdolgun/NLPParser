@@ -134,6 +134,8 @@ inline ostream& operator<<(ostream& os, const Rule& obj) {
 	return obj.print(os);
 }
 
+void print_partial_rule(ostream& os, Rule* rule, int start_pos, int end_pos);
+
 struct TrieNode {
 	using value_type = Rule * ;
 	string keys;

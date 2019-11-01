@@ -1,7 +1,6 @@
 #pragma once
 
 #include "grammar.h"
-#include "util.h"
 
 using State = pair<int, int>; // pair(ruleno,rulepos)
 using StateSet = set<State>; // set of (ruleno,rulepos)

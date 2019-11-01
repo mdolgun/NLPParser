@@ -1,11 +1,9 @@
 #include "stdafx.h"
 #include "common.h"
-#include "util.h"
 
 int debug, debug_mem;
 
 int TreeNode::id_count = 0;
-#define NEW_UNIFY
 
 int FeatList::count = 0;
 ostream& FeatList::print(ostream& os) const {
@@ -74,6 +72,16 @@ string Rule::sentence() const {
 		s.append(symbol->name);
 	}
 	return s;
+}
+
+void print_partial_rule(ostream& os, Rule* rule, int start_pos, int end_pos) {
+	auto start = rule->left->begin() + start_pos;
+	auto end = end_pos == -1 ? rule->left->end() : rule->left->begin() + end_pos;
+	for (auto ptr = start; ptr != end; ++ptr) {
+		if (ptr != start)
+			os << ' ';
+		os << (*ptr)->name;
+	}
 }
 
 void enumerate(TreeNode* node, vector<string>& out, bool right) {
@@ -227,10 +235,21 @@ bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList
 	}
 	else {
 		for (auto [name, val] : *param) {
-			if (val.empty()) { // empty parameter, pass-through the src values into dst
-				auto sit = src->find(name);
+			if (val.empty() || val[0]=='*') { // empty parameter or renamed parameter, pass-through the src values into dst
+				string src_name, dst_name;
+				if (val.empty())
+					dst_name = src_name = name;
+				else if (down) {
+					dst_name = name;
+					src_name = val.substr(1);
+				}
+				else {
+					dst_name = val.substr(1);
+					src_name = name;
+				}
+				auto sit = src->find(src_name);
 				if (sit != src->end()) { // parameter exist in src
-					auto dit = dst->find(name);
+					auto dit = dst->find(dst_name);
 					if (dit != dst->end()) { // same feat exist in dst too
 						if (sit->second != dit->second) { // feat values doesnot match
 							if (debug >= 2)
@@ -244,18 +263,12 @@ bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList
 								cout << '+' << dst.use_count();
 							dst = make_shared<FeatList>(*dst);
 						}
-						(*dst)[name] = sit->second;
+						(*dst)[dst_name] = sit->second;
 					}
 				}
 			}
 			else { // parameter with a value
 				if (!down) { // up-propagation
-					if (val[0] == '*') {
-						auto dit = dst->find(val.substr(1));
-						if (dit == dst->end())
-							continue;
-						val = dit->second;
-					}
 					auto sit = src->find(name);
 					if (sit != src->end()) { // if src has the param feat
 						if (sit->second != val) { // if param and src values doesn't match, unification fails
@@ -266,12 +279,6 @@ bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList
 					}
 				}
 				else { // down-propagation
-					if (val[0] == '*') {
-						auto sit = src->find(val.substr(1));
-						if (sit == src->end())
-							continue;
-						val = sit->second;
-					}
 					auto dit = dst->find(name);
 					if (dit != dst->end()) { // if dst has the param feat
 						if (dit->second != val) { // if param and dst values doesn't match, unification fails
@@ -296,7 +303,7 @@ bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList
 		cout << *dst << nl;
 	return true;
 }
-#ifdef NEW_UNIFY
+
 inline bool is_equal(FeatPtr a, FeatPtr b) {
 	if (a)
 		if (b)
@@ -311,6 +318,7 @@ inline bool is_equal(FeatPtr a, FeatPtr b) {
 
 }
 struct PartitionPred {
+	// predicate used for partitioning checks whether it is equal to feat(constructor parameter)
 	FeatPtr& feat;
 	PartitionPred(FeatPtr& _feat) : feat(_feat) { }
 	bool operator()(tuple<FeatPtr, OptionNodePtr>& other) {
@@ -355,6 +363,7 @@ void partition(TreeNodePtr node,FeatPtr parent_feat, FeatParam* fparam, vector<t
 }
 
 TreeNodePtr unify_tree(TreeNodePtr node,unordered_set<TreeNode*>* visited) {
+	// unifies a tree, if visited is not null, checks if a node is previously visited and it will not visit it again
 	if (visited && visited->count(node)) // node has already been visited
 		return node;
 	string last_error;
@@ -408,78 +417,7 @@ TreeNodePtr unify_tree(TreeNodePtr node, bool shared) {
 	else
 		return unify_tree(node, nullptr);
 }
-#else
-TreeNodePtr unify_tree(TreeNodePtr parent_node) {
-	string last_error;
-	if (!parent_node->nonterm)
-		return parent_node;
-	vector<OptionNodePtr> new_options;
-	for (auto option : parent_node->options) {
-		try {
-			Prod* body = option->rule->left;
-//			FeatList* parent_feat = option->rule->feat; /* or option->feat_list */
-			vector<tuple<vector<TreeNodePtr>, FeatPtr>> worklist = { { vector<TreeNodePtr>{},option->feat_list } };
-			// make cartesian product of parent & child options and check unification
-			for (int rulepos = 0; rulepos < option->left.size(); rulepos++) {
-				auto sub_node = option->left[rulepos];
-				if (!sub_node->nonterm) {
-					for (auto& worklist_item : worklist) {
-						get<0>(worklist_item).push_back(sub_node);
-					}
-					continue;
-				}
-				FeatParam* fparam = (*body)[rulepos]->fparam;
-				sub_node = unify_tree(sub_node);
-				vector<tuple<vector<TreeNodePtr>, FeatPtr>> new_worklist;
-				for (auto& [work_seq, work_feat] : worklist) {
-					vector<tuple<TreeNodePtr, FeatPtr>> sub_worklist;
-					bool first = true;
-					for (auto sub_option : sub_node->options) {
-						FeatPtr out_feat;
-						if( !unify_feat(work_feat, fparam, sub_option->feat_list, false) ) {
-							last_error = "Unify Error";
-							continue;
-						}
-						out_feat = work_feat;
-						bool found = false;
-						for (auto[subwork_node, subwork_feat] : sub_worklist) {
-							if (*subwork_feat == *out_feat) {
-								subwork_node->options.push_back(sub_option);
-								found = true;
-								break;
-							}
-						}
-						if (!found) {
-							TreeNode* new_sub_node = new TreeNode(sub_node);
-							new_sub_node->options.push_back(sub_option);
-							sub_worklist.emplace_back(new_sub_node, out_feat);
-						}
-					}
-					for (auto[subwork_node, subwork_feat] : sub_worklist) {
-						new_worklist.emplace_back(work_seq, subwork_feat);
-						get<0>(new_worklist.back()).push_back(subwork_node);
-					}
-				}
-				worklist = move(new_worklist);
-			}
-			//if (debug >= 1) {
-			//	cout << nl;
-			//}
-			for (auto[work_seq, work_feat] : worklist) {
-				OptionNodePtr new_option = new OptionNode(option->rule,work_feat);
-				new_option->left = move(work_seq);
-				new_options.push_back(new_option);
-			}
-		}
-		catch (UnifyError&) {
-		}
-	}
-	if (!new_options.size())
-		throw UnifyError(last_error);
-	parent_node->options = move(new_options);
-	return parent_node;
-}
-#endif
+
 void dot_print(ostream& os, TreeNode* node, unordered_set<TreeNode*>&visited,bool left,bool right) {
 	if (visited.find(node) != visited.end()) // skip already visited nodes
 		return;
@@ -515,7 +453,9 @@ void dot_print(ostream& os, TreeNode* node, unordered_set<TreeNode*>&visited,boo
 	}
 }
 void dot_print(ostream& os, TreeNode* node, bool left, bool right) {
-
+	// print <node> to <os> in a graphviz format
+	//<left>: true if left-branches of the tree is printed
+	//<right>: true if right-branches of the tree is printed
 	unordered_set<TreeNode*> visited;
 	os << "digraph {\n";
 	os << "graph[ordering = \"out\"];\n";
@@ -523,6 +463,9 @@ void dot_print(ostream& os, TreeNode* node, bool left, bool right) {
 	os << "}\n";
 }
 void dot_print(string fname, TreeNode* node, bool left, bool right) {
+	// print <node> to file <fname> in a graphviz format
+	//<left>: true if left-branches of the tree is printed
+	//<right>: true if right-branches of the tree is printed
 	ofstream os(fname);
 	if (!os)
 		return;
@@ -562,6 +505,7 @@ void dump_trie(TrieNode* node, string& buf) {
 	buf.pop_back();
 }
 void dump_trie(TrieNode* node) {
+	// dumps all keys in a trie with associated values (i.e. rules)
 	string buf;
 	dump_trie(node, buf);
 }
@@ -595,6 +539,7 @@ void search_trie_prefix(TrieNode* node, const char* str, vector<pair<int, Rule*>
 }
 
 void split(vector<string>& result, const string &s, char delim) {
+	// splits a string into vector of strings using the <delim> character
 	stringstream ss(s);
 	string item;
 

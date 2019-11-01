@@ -1,7 +1,4 @@
 #include "stdafx.h"
-//#include "grammar.h"
-#include "util.h"
-//#include "tree.h"
 #include "parser.h"
 
 ostream& operator<<(ostream& os, const RuleSet& ruleset) {
@@ -45,16 +42,6 @@ ostream& operator<<(ostream& os, StateSet& stateset) {
 }
 ostream& operator<< (ostream& os, const Edge& edge) {
 	return os << '(' << get<0>(edge) << ',' << get<1>(edge) << ',' << symbol_table.get(get<2>(edge)) << ',' << get<3>(edge) << ',' << get<4>(edge) << ')';
-}
-
-void print_partial_rule(ostream& os, Rule* rule, int start_pos, int end_pos) {
-	auto start = rule->left->begin() + start_pos;
-	auto end = end_pos == -1 ? rule->left->end() : rule->left->begin() + end_pos;
-	for (auto ptr = start; ptr != end; ++ptr) {
-		if (ptr != start)
-			os << ' ';
-		os << (*ptr)->name;
-	}
 }
 
 void Parser::print_stateset(ostream& os,StateSet& stateset) {
@@ -301,17 +288,6 @@ void Parser::print_parse_dot_all(string fname) {
 	print_parse_dot_all(os);
 }
 
-//ostream& operator<<(ostream& os, const vector<FeatList>& flist_vec) {
-//	bool first = true;
-//	for (auto& flist : flist_vec) {
-//		if (first)
-//			first = false;
-//		else
-//			os << '|';
-//		os << flist;
-//	}
-//	return os;
-//}
 constexpr int indent_size = 4;
 void Parser::print_parse(ostream& os, Edge& top_edge, int level,int indent_size,bool extended) {
 	indent(os, level * indent_size);
@@ -572,7 +548,7 @@ TreeNode* Parser::translate_tree(TreeNode* parent_node,FeatParam* fparam,FeatPtr
 					node = new TreeNode(&symbol->name,false);
 				}
 				else { // a non-referenced non-terminal
-					node = make_trans_tree(symbol->id, symbol->fparam, parent_feat);
+					node = make_trans_tree(symbol->id, symbol->fparam, option->feat_list);
 				}
 				option->right.push_back(node);
 			}
