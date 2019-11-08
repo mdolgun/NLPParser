@@ -19,8 +19,8 @@ void Parser::persist(ofstream& os) {
 	
 }
 void Parser::load_grammar(const char* fname) {
-	GrammarParser grammar;
-	grammar.load_grammar(fname, rules, root);
+	GrammarParser grammar(this);
+	grammar.load_grammar(fname);
 	if (debug >= 1) {
 		cout << "Rules:" << nl;
 		print_rules(cout);
@@ -475,17 +475,24 @@ TreeNode* Parser::make_trans_tree(int id,FeatParam* fparam,FeatPtr parent_feat) 
 			if( !unify_feat(feat_list, fparam, parent_feat, true) )
 				throw UnifyError("UnifyError");
 			OptionNode* option = new OptionNode(rule, feat_list);
+			bool cut = rule->right->cost < 0;
 			for (auto symbol : *rule->right) {
-				if (symbol->idx != -1) { // a referenced nonterminal
-					option->right.push_back(make_trans_tree(symbol->id, symbol->fparam, parent_feat));
+				if (symbol->nonterminal) {
+					if (symbol->idx == -1) { // a non-referenced nonterminal
+						option->right.push_back(make_trans_tree(symbol->id, symbol->fparam, feat_list));
+					}
+					// else what??
 				}
 				else { // terminal
-					assert(!symbol->nonterminal); // cannot be a non-referenced nonterminal
-					TreeNode* sub_node = new TreeNode(&symbol->name, false);
+					//assert(!symbol->nonterminal); // cannot be a non-referenced nonterminal
+					//TreeNode* sub_node = new TreeNode(&symbol->name, false);
+					TreeNode* sub_node = new TreeNode(&symbol->name, symbol->nonterminal);
 					option->right.push_back(sub_node);
 				}
 			}
 			node->options.push_back(option);
+			if (cut)
+				break;
 		}
 		catch (UnifyError&) {
 		}
@@ -721,7 +728,7 @@ void Parser::parse(string input_str) {
 					if (act_states[i].size()) {
 						if (debug >= 1)
 							cout << "Parse is not possible at position " << i << nl;
-						throw ParseError("Parse is not possible at position " + i);
+						throw ParseError( format("Parse is not possible at position {}",i) );
 					}
 			}
 		}
@@ -784,6 +791,7 @@ string UnitTest::get_lines(ifstream& is, stringstream& ref) {
 		return line;
 	return "";
 }
+
 void UnitTest::diff(string a, string b) {
 	// outputs diff of two strings
 	cout << "***";
@@ -798,7 +806,8 @@ void UnitTest::diff(string a, string b) {
 	copy(it_b, end_b, it_os);
 	cout << "***" << nl;
 }
-
+void enumerate(TreeNode* node, vector<vector<string>>& out, bool right);
+string post_process(Grammar* grammar, vector<string>& in);
 void UnitTest::test_case(const char* fname) {
 	// loads an executes test cases from file "fname"
 	int case_cnt = 0, success_cnt = 0;
@@ -814,16 +823,22 @@ void UnitTest::test_case(const char* fname) {
 	string error;
 	while (!command.empty()) {
 		if (command == "###grammar") {
-			stringstream grammar;
-			command = get_lines(is, grammar);
-			//cout << grammar.str();
+			try {
+				stringstream grammar;
+				command = get_lines(is, grammar);
+				//cout << grammar.str();
 
-			parser = make_unique<Parser>();
-			GrammarParser gparser;
-			gparser.parse_grammar(grammar, parser->rules, parser->root);
-			if (debug >= 1)
-				parser->print_rules(cout);
-			parser->compile();
+				parser = make_unique<Parser>();
+				GrammarParser gparser(parser.get());
+				gparser.parse_grammar(grammar);
+				if (debug >= 1)
+					parser->print_rules(cout);
+				parser->compile();
+			}
+			catch (GrammarError& e) {
+				cerr << e.what() << nl;
+				return;
+			}
 		}
 		else if (command == "###input") {
 			string input;
@@ -847,6 +862,55 @@ void UnitTest::test_case(const char* fname) {
 			if (debug_mem >= 1)
 				cout << "Parse-end FeatList count: " << FeatList::count << endl;
 		}
+		else if (command == "###test") {
+			string line;
+			while (getline(is, line) && line.substr(0, 3) != "###") {
+				vector<string> io;
+				ltrim(line);
+				rtrim(line);
+				if (line.empty() || line[0] == '#')
+					continue;
+				split(io, line, ':');
+				assert(io.size() == 2);
+				rtrim(io[0]);
+				ltrim(io[1]);
+				case_cnt++;
+				try {
+					cout << io[0] << " : " << io[1] << nl;
+					parser->parse(io[0]);
+					ptree = parser->make_tree(shared);
+					if (debug >= 1)
+						print_tree(cout, ptree, true, true, false);
+					utree = unify_tree(ptree, shared);
+					if (debug >= 1)
+						print_tree(cout, utree, true, true, false);
+					ttree = parser->translate_tree(utree, shared);
+					if (debug >= 1)
+						print_tree(cout, ttree, true, true, true);
+					bool found = false;
+					for (auto& s : enumerate(parser.get(),ttree)) {
+						if (s == io[1]) {
+							found = true;
+							cout << "  +" << s << nl;
+						}
+						else
+							cout << "  "<< s << nl;
+					}
+					if (found)
+						success_cnt++;
+				}
+				catch (UnifyError& e) {
+					cout << "  *UnifyError: " << e.what() << nl;
+				}
+				catch (ParseError& e) {
+					cout << "  *ParseError: " << e.what() << nl;
+				}
+			}
+			if (is)
+				command = line;
+			else // eof
+				command = "";
+		}
 		else {
 			stringstream ref, out;
 			if (error.empty()) {
@@ -863,7 +927,7 @@ void UnitTest::test_case(const char* fname) {
 				else if (command == "###pformatr_ext")
 					print_tree(out, ttree, true, true, true);
 				else if(command == "###enum")
-					for (auto& s : enumerate(ttree))
+					for (auto& s : enumerate(parser.get(),ttree))
 						out << s << '\n';
 				else
 				{

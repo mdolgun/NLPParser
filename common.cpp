@@ -83,7 +83,7 @@ void print_partial_rule(ostream& os, Rule* rule, int start_pos, int end_pos) {
 		os << (*ptr)->name;
 	}
 }
-
+/*
 void enumerate(TreeNode* node, vector<string>& out, bool right) {
 	// helper function
 	vector<string> new_out;
@@ -111,12 +111,92 @@ void enumerate(TreeNode* node, vector<string>& out, bool right) {
 	}
 	out = move(new_out);
 }
-
-vector<string> enumerate(TreeNode* node,bool right) {
+vector<string> enumerate(TreeNode* node, bool right) {
 	// converts all possible inputs/outputs of a parse tree into a vector of strings
 	// right=true converts outputs(right trees), right=false converts inputs(left trees)
 	vector<string> out = { "" };
 	enumerate(node, out, right);
+	return out;
+}
+*/
+void enumerate(TreeNode* node, vector<vector<string>>& out, bool right) {
+	// helper function
+	vector<vector<string>> new_out;
+	for (int i = 0; i < node->options.size(); ++i) {
+		auto option = node->options[i];
+		vector<vector<string>> temp;
+		if (i == node->options.size() - 1)
+			temp = move(out);
+		else
+			temp = out;
+		auto& ref = right ? option->right : option->left;
+		for (auto sub_node : ref) {
+			if (!sub_node->nonterm)
+				for (auto& item : temp) {
+					item.push_back(*sub_node->name);
+				}
+			else
+				enumerate(sub_node, temp, right);
+		}
+		copy(make_move_iterator(temp.begin()), make_move_iterator(temp.end()), back_inserter(new_out));
+	}
+	out = move(new_out);
+}
+
+string post_process(Grammar* grammar,vector<string>& in) {
+	string prev = "";
+	vector<string> temp;
+	string clipboard;
+	temp.reserve(in.size());
+	for (auto& item : in) {
+		if (item == "+copy") {
+			clipboard = item;
+		}
+		else if (item == "+paste") {
+			temp.push_back(clipboard);
+		}
+		if (item[0] == '+') {
+			auto it = grammar->suffixes.find(prev + item);
+			if (it == grammar->suffixes.end()) {
+				it = grammar->suffixes.find(item);
+				if (it == grammar->suffixes.end())
+					throw runtime_error("Cannot find suffix default: " + item);
+				temp.push_back(it->second);
+			}
+			else {
+				temp.pop_back();
+				temp.push_back(it->second);
+			}
+		}
+		else
+			temp.push_back(item);
+		prev = item;
+	}
+	string result;
+	bool first = true;
+	for (auto& s : temp) {
+		bool suffix = s[0] == '-';
+		if (first)
+			first = false;
+		else {
+			if(!suffix)
+				result += ' ';
+		}
+		if (suffix)
+			result += s.substr(1);
+		else
+			result += s;
+	}
+	return result;
+}
+
+vector<string> enumerate(Grammar* grammar,TreeNode* node, bool right) {
+	vector<vector<string>> result(1);
+	vector<string> out;
+	enumerate(node, result, right);
+	for (auto& item : result) {
+		out.push_back(post_process(grammar, item));
+	}
 	return out;
 }
 
@@ -129,7 +209,7 @@ void print_tree(ostream& os, TreeNode* node, int level, int indent_size, bool ex
 
 	if (!extended && indent_size && node->options.size() == 1) {
 		auto& node_list = right ? node->options[0]->right : node->options[0]->left;
-		if (all_of(node_list.begin(), node_list.end(), [](auto& sub_node) { return !sub_node->nonterm; }))
+		if (all_of(node_list.begin(), node_list.end(), [](auto& sub_node) { return !sub_node->nonterm; })) // if all symbol are terminals, write them in a single line
 			indent_size = 0;
 	}
 	os << '(';
@@ -549,6 +629,17 @@ void split(vector<string>& result, const string &s, char delim) {
 }
 
 void indent(ostream& os, int size) {
+	// writes <size> spaces to <os>
 	for (int i = 0; i < size; i++)
 		os << ' ';
+}
+
+// trim from start (in place)
+void ltrim(std::string &s) {
+	s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](int ch) { return !isascii(ch) || !std::isspace(ch); } ));
+}
+
+// trim from end (in place)
+void rtrim(std::string &s) {
+	s.erase(std::find_if(s.rbegin(), s.rend(), [](int ch) { return !isascii(ch) || !std::isspace(ch); }).base(), s.end());
 }

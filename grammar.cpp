@@ -3,7 +3,6 @@
 
 #include "stdafx.h"
 #include "grammar.h"
-#include <cctype>
 
 using namespace std;
 
@@ -11,7 +10,7 @@ SymbolTable symbol_table;
 
 void GrammarParser::skip_ws() {
 	// skip white spaces in the input
-	while (isascii(buf[pos]) && isspace(buf[pos])) {
+	while (buf[pos]!='#' && isascii(buf[pos]) && isspace(buf[pos])) {
 		// no need to check end-of-string because buf[size]=='\0'
 		pos++;
 	}
@@ -55,10 +54,9 @@ bool GrammarParser::get_token(const char* token, bool ensure, bool skip_ws) {
 	return false;
 }
 
-
-void GrammarParser::parse_grammar(istream& is, vector<RulePtr>& rules, TrieNode* root) {
+void GrammarParser::parse_grammar(istream& is) {
 	buf = "S' -> S() : S()";
-	parse_rule(rules, root);
+	parse_rule();
 	line = 0;
 	while (getline(is, buf)) {
 		pos = 0;
@@ -96,9 +94,49 @@ void GrammarParser::parse_grammar(istream& is, vector<RulePtr>& rules, TrieNode*
 					throw GrammarError("Invalid Directive: " + buf);
 				}
 			}
+			else if (directive == "macro") { // %macro <name> <values>
+				if (params.size() != 3)
+					throw GrammarError("Invalid Directive Parameter Count: " + buf);
+				split(macros[params[1]]["$"], params[2], ',');
+			}
+			else if (directive == "form") { // %form <name> <values>
+				if (params.size() != 3)
+					throw GrammarError("Invalid Directive Parameter Count: " + buf);
+				vector<string> forms;
+				split(forms, params[2], ',');
+				auto it = macros.find(params[1]);
+				if (it == macros.end())
+					throw GrammarError("Macro not defined: " + buf);
+				if (it->second["$"].size() != forms.size())
+					throw GrammarError("Macro Parameter Count doesn't match: " + buf);
+				it->second[forms[0]] = move(forms);
+			}
+			else if (directive == "suffix") { // %suffix <name> <values>
+				if (params.size() != 3)
+					throw GrammarError("Invalid Directive Parameter Count: " + buf);
+				grammar->suffixes[params[1]] = params[2];
+			}
+			//el
+			//else if (directive == "suffix_macro") { // %suffix_macro <name> <values>
+			//	if (params.size() != 3)
+			//		throw GrammarError("Invalid Directive Parameter Count: " + buf);
+			//	split(suffix_macros[params[1]]["$"], params[2], ',');
+			//}
+			//else if (directive == "suffix_form") { // %suffix_macro <name> <values>
+			//	if (params.size() != 3)
+			//		throw GrammarError("Invalid Directive Parameter Count: " + buf);
+			//	vector<string> forms;
+			//	split(forms, params[2], ',');
+			//	auto it = suffix_macros.find(params[1]);
+			//	if (it == suffix_macros.end())
+			//		throw GrammarError("Macro not defined: " + buf);
+			//	if (it->second["$"].size() != forms.size())
+			//		throw GrammarError("Macro Parameter Count doesn't match: " + buf);
+			//	it->second[forms[0]] = move(forms);
+			//}
 		}
 		else if(parse_enabled)
-			parse_rule(rules, root);
+			parse_rule();
 	}
 	if (debug >= 2) {
 		cout << "Trie Dump:\n";
@@ -106,25 +144,25 @@ void GrammarParser::parse_grammar(istream& is, vector<RulePtr>& rules, TrieNode*
 	}
 }
 
-void GrammarParser::load_grammar(string fname, vector<RulePtr>& rules, TrieNode* root) {
+void GrammarParser::load_grammar(string fname) {
 	ifstream f(fname);
 	if (!f)
 		throw runtime_error("Cannot open file: " + fname);
-	parse_grammar(f, rules, root);
+	parse_grammar(f);
 }
 
-Symbol* GrammarParser::get_symbol(bool ensure, bool skip_ws) {
+PreSymbol* GrammarParser::get_symbol(bool ensure, bool skip_ws) {
 	if (skip_ws) {
 		this->skip_ws();
 	}
-	auto begin = buf.cbegin()+pos, end = buf.cend();
+	auto begin = buf.cbegin() + pos, end = buf.cend();
 	smatch sm;
 	if (regex_search(begin, end, sm, SYMBOL, regex_constants::match_continuous)) {
 		pos += sm.length();
 		if (sm[1].matched)
-			return new Symbol( sm.str(1), true); // NonTerminal
+			return new PreSymbol(sm.str(1), true); // NonTerminal
 		if (sm[2].matched)
-			return new Symbol( sm.str(2), false); // Terminal
+			return new PreSymbol(sm.str(2), false); // Terminal
 	}
 	if (ensure) {
 		throw GrammarError(
@@ -164,11 +202,11 @@ int GrammarParser::get_integer(bool ensure, bool skip_ws) {
 	return stoi(val);
 }
 
-Symbol* GrammarParser::get_nonterm(bool ensure, bool skip_ws) {
+PreSymbol* GrammarParser::get_head() {
 	string name;
-	if( !get_expr(name, NONTERM, "NONTERM", ensure, skip_ws) )
+	if (!get_expr(name, NONTERM, "NONTERM", true, false))
 		return nullptr;
-	return new Symbol(name, true);
+	return new PreSymbol(name, true);
 }
 
 bool GrammarParser::get_feat(string& out, bool ensure, bool skip_ws) {
@@ -236,12 +274,18 @@ FeatPtr GrammarParser::parse_feat_list() {
 	get_token("]");
 	return FeatPtr(flist);
 }
-vector<Prod*>* GrammarParser::parse_prod() {
-	vector<Prod*>* prods = new vector<Prod*>();
+
+void GrammarParser::parse_prod(vector<PreProd*>& prods,const string& macro_name) {
 	do {
-		Prod* prod = new Prod();
-		Symbol* symbol = get_symbol(false);
+		PreProd* prod = new PreProd();
+		PreSymbol* symbol = get_symbol(false);
 		while (symbol) {
+			if (symbol->name[0] == '$' && !macro_name.empty()) {
+				auto it = macros[macro_name].find(symbol->name.substr(1));
+				if (it == macros[macro_name].end())
+					throw GrammarError("Form not defined: " + symbol->name);
+				symbol->macro_values = &it->second;
+			}
 			if (symbol->nonterminal) {
 				symbol->fparam = parse_fparam_list();
 			}
@@ -254,11 +298,9 @@ vector<Prod*>* GrammarParser::parse_prod() {
 		}			
 		else
 			prod -> cost = 0;
-		prods->push_back(prod);
+		prods.push_back(prod);
 	} while (get_token("|",false,true));
-	return prods;
 }
-
 
 bool operator==(const Symbol& a, const Symbol& b) {
 	// check the equivalency of two symbols (their id's and feature parameters should match)
@@ -289,19 +331,87 @@ void resolve_reference(Prod* left, Prod* right) {
 		}
 	}
 }
-void GrammarParser::parse_rule(vector<RulePtr>& rules, TrieNode* root) {
+void GrammarParser::create_rule(Symbol* head, Prod* left,Prod* right,FeatPtr& feat) {
+	Rule* rule = new Rule();
+	rule->head = head;
+	rule->left = left;
+	rule->right = right;
+	rule->feat = feat;
+
+	auto p = rule->left->begin(); // dummy initial value for p
+	auto flag = auto_dict;
+	if (auto_dict != None) {
+		p = find_if(rule->left->begin(), rule->left->end(), [](auto& lsymbol) {return lsymbol->nonterminal; }); // find the first nonterminal position
+		if (p == rule->left->begin()) // either it is empty or it starts with nonterminals
+			flag = None;
+		else if (p == rule->left->end()) // all symbols are terminals
+			flag = TermOnly;
+		else // it starts with terminals
+			if (auto_dict == TermOnly)
+				flag = None;
+	}
+	if (flag == None) { // don't add to dict
+		resolve_reference(rule->left, rule->right);
+		rule->id = grammar->rules.size();
+		grammar->rules.emplace_back(rule); // unique_ptr is created for the rule
+	}
+	else if (flag == TermOnly) { // add whole rule LHS to the dict
+		add_trie(root, rule->sentence(), rule);
+	}
+	else { // normalize the rule so that it starts with a dummy NonTerminal which contains initial terminals
+		Rule* new_rule = new Rule;
+		new_rule->left = new Prod;
+		new_rule->right = new Prod;
+		new_rule->feat = FeatPtr(new FeatList);
+		copy(rule->left->begin(), p, back_inserter(*new_rule->left)); // copy all starting terminals to the new rule
+		rule->left->erase(rule->left->begin(), p); // delete copied terminals from the original rule
+		rule->left->insert(rule->left->begin(), nullptr); // insert place-holder nullptr, for the terminal-only portion of the rule
+
+		auto& entries = tail_map[rule->head->id]; // get all transformed rules having same head e.g.  V -> V$0,  V -> V$1 Obj,  V -> V$2 Obj Obj
+		auto q = find(entries.begin(), entries.end(), *new_rule); // search if an equivalent rule exists 
+																  // two rules are equivalent if all parameters except initial left terminals are the same
+																  // e.g (V -> watch Obj , V -> look after Obj) are equivalent, can be reduced to V -> V$0 Obj , V$0 -> watch , V$0 -> look after
+		string name;
+		if (q == entries.end()) { // if no equivalent rule is found, then create the parent rule (eg V -> V$0 Obj )
+			name = rule->head->name + '$' + to_string(entries.size());
+			(*rule->left)[0] = new Symbol(name, true);
+			entries.push_back(ref(*rule));
+			rule->id = grammar->rules.size();
+			resolve_reference(rule->left, rule->right);
+			grammar->rules.emplace_back(rule); // unique_ptr is created for the transformed rule
+		}
+		else // there exists another tail-equivalent rule, just copy the name of the left-most symbol(NT)
+		{
+			name = q->get().left->at(0)->name;
+		}
+		new_rule->head = new Symbol(name, true);
+
+		if (debug >= 3)
+			cout << "***" << *rule << '\n';
+		add_trie(root, new_rule->sentence(), new_rule);
+	}
+}
+void GrammarParser::parse_rule() {
 	// parses a rule, using rule-vector and root node of a dictionary
+	string macro_name;
 	if (get_eol(false))
 		return;
-	Symbol* head = get_nonterm();
+	PreSymbol* head = get_head();
+	if (head->name[0] == '$') {
+		macro_name = head->name.substr(1);
+		auto it = macros.find(macro_name);
+		if (it == macros.end())
+			throw GrammarError("Macro not defined: " + macro_name);
+		head->macro_values = &it->second["$"];
+	}
 	get_token("->");
-	vector<Prod*>* llist = parse_prod();
-	vector<Prod*>* rlist;
+	vector<PreProd*> llist, rlist;
+	parse_prod(llist, macro_name);
+
 	if (get_token(":", false))
-		rlist = parse_prod();
+		parse_prod(rlist, macro_name);
 	else {
-		rlist = new vector<Prod*>();
-		rlist->push_back(new Prod());
+		rlist.push_back(new PreProd());
 	}
 
 	FeatPtr feat;
@@ -311,68 +421,16 @@ void GrammarParser::parse_rule(vector<RulePtr>& rules, TrieNode* root) {
 		feat = FeatPtr(new FeatList()); // or use a singleton for empty feature list
 
 	get_eol();
-	for (auto left : *llist)
-		for (int i = 0; i < rlist->size(); ++i) {
-			auto right = (*rlist)[i];
-			Rule* rule = new Rule();
-			rule->head = head;
-			rule->left = new Prod(left);
-			//if (i == rlist->size() - 1)
-			//	rule->right = right; // use current production, if it is last alternative
-			//else
-			rule->right = new Prod(right); // else copy the current production (because they may have not same references)
-			rule->feat = feat;
-
-			auto p = rule->left->begin(); // dummy initial value for p
-			auto flag = auto_dict;
-			if (auto_dict != None) {
-				p = find_if(rule->left->begin(), rule->left->end(), [](auto& lsymbol) {return lsymbol->nonterminal; }); // find the first nonterminal position
-				if (p == rule->left->begin()) // either it is empty or it starts with nonterminals
-					flag = None;
-				else if (p == rule->left->end()) // all symbols are terminals
-					flag = TermOnly;
-				else // it starts with terminals
-					if (auto_dict == TermOnly)
-						flag = None;
+	
+	for (auto left : llist)
+		for (auto right : rlist) {
+			if (macro_name.empty()) {
+				create_rule(new Symbol(head), new Prod(left), new Prod(right), feat);
 			}
-			if (flag == None) { // don't add to dict
-				resolve_reference(rule->left, rule->right);
-				rule->id = rules.size();
-				rules.emplace_back(rule); // unique_ptr is created for the rule
-			} else if (flag == TermOnly) { // add whole rule LHS to the dict
-				add_trie(root, rule->sentence(), rule);
-			}
-			else { // normalize the rule so that it starts with a dummy NonTerminal which contains initial terminals
-				Rule* new_rule = new Rule;
-				new_rule->left = new Prod;
-				new_rule->right = new Prod;
-				new_rule->feat = FeatPtr(new FeatList);
-				copy(rule->left->begin(), p, back_inserter(*new_rule->left));
-				rule->left->erase(rule->left->begin(), p);
-				rule->left->insert(rule->left->begin(), nullptr); // insert place-holder nullptr, for the terminal-only portion of the rule
-
-				auto& entries = tail_map[head->id]; // get all transformed rules having same head e.g.  V -> V$0,  V -> V$1 Obj,  V -> V$2 Obj Obj
-				auto q = find(entries.begin(), entries.end(), *new_rule); // search if an equivalent rule exists 
-				// two rules are equivalent if all parameters except initial left terminals are the same
-				// e.g (V -> watch Obj , V -> look after Obj) are equivalent, can be reduced to V -> V$0 Obj , V$0 -> watch , V$0 -> look after
-				string name;
-				if (q == entries.end()) { // if no equivalent rule is found, then create the parent rule (eg V -> V$0 Obj )
-					name = rule->head->name + '$' + to_string(entries.size());
-					(*rule->left)[0] = new Symbol(name, true);
-					entries.push_back(ref(*rule));
-					rule->id = rules.size();
-					resolve_reference(rule->left, rule->right);
-					rules.emplace_back(rule); // unique_ptr is created for the transformed rule
+			else {
+				for (int idx = 0; idx < head->macro_values->size(); ++idx) {
+					create_rule(new Symbol(head,idx), new Prod(left,idx), new Prod(right), feat);
 				}
-				else
-				{
-					name = q->get().left->at(0)->name;
-				}
-				new_rule->head = new Symbol(name, true);
-
-				if (debug >= 3)
-					cout << "***" << *rule << '\n';
-				add_trie(root, new_rule->sentence(), new_rule);
 			}
 		}
 }

@@ -19,6 +19,7 @@
 #include <regex>
 #include <stdexcept>
 #include <memory>
+#include <cctype>
 #if defined(__GNUC__) && __GNU_CC < 8
 	#include <experimental/filesystem>
 #else

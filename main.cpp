@@ -30,7 +30,7 @@ void test_ambig_trans() {
 		auto tree = parser.make_tree(true); // generate parse tree from internal tables
 		tree = parser.translate_tree(tree, true); // translate the tree
 		dot_print("ambig_trans_tree.dot", tree, false, true); // write translated parse tree to a file in a GraphViz format
-		for (auto& s : enumerate(tree)) // enumerate all possible output sentences
+		for (auto& s : enumerate(&parser,tree)) // enumerate all possible output sentences
 			cout << s << endl;
 	}
 	catch (GrammarError&) { // input grammar cannot be parsed
@@ -53,11 +53,11 @@ void test_translate(const char* grm,const char* input) {
 		print_tree(cout, tree2, true, true, false);
 		auto tree3 = parser.translate_tree(tree2);
 		print_tree(cout, tree3, true, true, true);
-		for (auto& s : enumerate(tree3))
+		for (auto& s : enumerate(&parser,tree3))
 			cout << s << endl;
 	}
-	catch (GrammarError&) {
-		cout << "ParseError" << nl;
+	catch (GrammarError& e) {
+		cout << "ParseError" << e.what() << nl;
 	}
 	catch (UnifyError&) {
 		cout << "UnifyError" << nl;
@@ -100,7 +100,7 @@ void test_tree(string grammar_file, string sentence, string out_file, bool share
 #endif
 		//print_tree(cout, tree3, true, true, true);
 		dot_print(out_file + "_trans.dot", tree3, false, right);
-		for (auto& s : enumerate(tree3))
+		for (auto& s : enumerate(&parser,tree3))
 			cout << s << '\n';
 		cout << nl;
 	}
@@ -140,14 +140,17 @@ int main()
 	//test_tree("test/simple_trans_feat.grm", "i saw the man in the house", "test/simple_trans_feat", false, true, true);
 	//test_tree("test/ambig_trans.grm", "people like heroes like people", "test/ambig_trans_sh", true, true, true);
 	//test_tree("test/ambig_trans.grm", "people like heroes like people", "test/ambig_trans", false, true, true);
+	debug = 0;
 	//test_dir();
-	//test_case("test/feat_param_rename.tst");
+	test_case("pp.tst");
 	//debug_mem = 1;
 	//if (debug_mem >= 1)
 	//	cout << "FeatList count: " << FeatList::count << endl;
 	//test.test_case("test/trans_case_norm.tst");
 	//if (debug_mem >= 1)
 	//	cout << "FeatList count: " << FeatList::count << endl;
-	test_translate("test/feat_param_rename.grm", "a");
+	debug = 0;
+	//test_translate("test/deep.grm", "she sleeps");
+	//test_translate("np.grm", "house door bell");
 	return 0;
 }

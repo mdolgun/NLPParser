@@ -14,10 +14,10 @@ using EdgeSeq = vector<Edge>;
 using EdgeInfo = tuple<Rule*, EdgeSeq>;
 
 using BackParam = tuple<int, int, int>; // <pos,state,symbol>
-struct Parser {
+struct Parser : public Grammar{
 	Edge top_edge;
-	vector<RulePtr> rules;
-	TrieNode* root;
+	//vector<RulePtr> rules;
+	//TrieNode* root;
 	RuleDict ruledict;
 	vector<StateSet> reduce, ereduce;
 	vector<unordered_map<int, int>> dfa;

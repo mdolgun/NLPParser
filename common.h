@@ -72,6 +72,15 @@ inline ostream& operator<<(ostream& os, const FeatParam& obj) {
 	return obj.print(os);
 }
 void split(vector<string>& result, const string &s, char delim);
+
+struct PreSymbol {
+	string name;
+	FeatParam* fparam = nullptr;
+	const vector<string>* macro_values = nullptr;
+	bool nonterminal;
+	PreSymbol(string s,bool nonterm) : name(s), nonterminal(nonterm) { }
+};
+
 struct Symbol {
 	FeatParam* fparam = nullptr; // feature parameter, nullptr if there is no parameter
 	string name; // name of the symbol (for debugging/display purposes)
@@ -95,6 +104,21 @@ struct Symbol {
 		idx = other->idx;
 		nonterminal = other->nonterminal;
 	}
+	Symbol(PreSymbol* other,int macro_idx=-1) {
+		fparam = other->fparam;
+		nonterminal = other->nonterminal;
+		if (macro_idx != -1 && other->macro_values != nullptr)
+			name = other->macro_values->at(macro_idx);
+		else
+			name = other->name;
+		string s = name;
+		if (nonterminal) {
+			auto pos = s.find('-');
+			if (pos != s.npos)
+				s = s.substr(0, pos);
+		}
+		id = symbol_table.add(s, other->nonterminal);
+	}
 };
 
 
@@ -102,12 +126,17 @@ inline ostream& operator<<(ostream& os, const Symbol& obj) {
 	return obj.print(os);
 }
 
+struct PreProd : public vector<PreSymbol*> {
+	int cost = 0;
+};
+
 struct Prod : public vector<Symbol*> {
 	int cost = 0;
 	Prod() = default;
-	Prod(Prod* other) {
+	Prod(PreProd* other, int macro_idx=-1) {
+		reserve(other->size());
 		for (auto psymbol : *other) {
-			push_back(new Symbol(psymbol));
+			push_back(new Symbol(psymbol, macro_idx));
 		}
 		cost = other->cost;
 	}
@@ -127,6 +156,8 @@ struct Rule {
 	ostream& print(ostream& os) const;
 	string sentence() const;
 };
+
+
 
 using RulePtr = unique_ptr<Rule>;
 
@@ -180,7 +211,15 @@ struct TreeNode {
 	TreeNode(const string* _name,bool _nonterm) : name(_name),nonterm(_nonterm),id(id_count++) { }
 	TreeNode(const TreeNode* other) : name(other->name), nonterm(other->nonterm), start_pos(other->start_pos), end_pos(other->end_pos), id(id_count++) { }
 };
+
+struct Grammar {
+	unordered_map<string, string> suffixes; // e.g. suffix["ben+e"] = "bana"
+	vector<RulePtr> rules;
+	TrieNode* root;
+};
+
 vector<string> enumerate(TreeNode* node, bool right=true);
+vector<string> enumerate(Grammar* grammar, TreeNode* node, bool right = true);
 void print_tree(ostream& os, TreeNode* tree, bool indented, bool extended, bool right);
 TreeNode* unify_tree(TreeNode* parent_node, bool shared=false);
 bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList> src, bool down);
@@ -193,3 +232,5 @@ int get_enum(initializer_list<string> list, string& param);
 void search_trie_prefix(TrieNode* node, const char* str, vector<pair<int, Rule*>>& result);
 void split(vector<string>& result, const string &s, char delim);
 void indent(ostream& os, int size);
+void ltrim(string &s);
+void rtrim(string &s);
