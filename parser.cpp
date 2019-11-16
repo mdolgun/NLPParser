@@ -1,20 +1,15 @@
 #include "stdafx.h"
 #include "parser.h"
 
-ostream& operator<<(ostream& os, const RuleSet& ruleset) {
-	for (int item : ruleset) {
-		os << item << " ";
-	}
-	return os;
+void Parser::print_ruledict(ostream& os) {
+	for (int i = 0; i < ruledict.size(); i++)
+		if (ruledict[i].size()) {
+			os << symbol_table.get(i) << " : ";
+			for (int item : ruledict[i])
+				os << item << " ";
+			os << nl;
+		}
 }
-ostream& operator<<(ostream& os, const RuleDict& ruledict) {
-	for (int i = 0; i < ruledict.size(); i++) {
-		if (ruledict[i].size())
-			os << symbol_table.get(i) << " : " << ruledict[i] << endl;
-	}
-	return os;
-}
-
 void Parser::persist(ofstream& os) {
 	
 }
@@ -40,6 +35,7 @@ ostream& operator<<(ostream& os, const State& state) {
 ostream& operator<<(ostream& os, StateSet& stateset) {
 	return join(os, stateset, " ");
 }
+
 ostream& operator<< (ostream& os, const Edge& edge) {
 	return os << '(' << get<0>(edge) << ',' << get<1>(edge) << ',' << symbol_table.get(get<2>(edge)) << ',' << get<3>(edge) << ',' << get<4>(edge) << ')';
 }
@@ -133,8 +129,10 @@ void Parser::compile() {
 	for (int ruleno = 0; ruleno < rules.size(); ruleno++) {
 		ruledict[rules[ruleno]->head->id].push_back(ruleno);
 	}
-	if (debug >= 2)
-		cout << "RuleDict:" << endl << ruledict;
+	if (debug >= 2) {
+		cout << "RuleDict:\n";
+		print_ruledict(cout);
+	}
 
 	vector<bool> nullable(n_symbols); // nullable stores if a nonterminal can be nullable (i.e. can derive to empty string) for any rule
 	bool modified = true;
@@ -826,14 +824,21 @@ void UnitTest::test_case(const char* fname) {
 			try {
 				stringstream grammar;
 				command = get_lines(is, grammar);
-				//cout << grammar.str();
 
 				parser = make_unique<Parser>();
 				GrammarParser gparser(parser.get());
+
+				auto start = std::chrono::system_clock::now();
 				gparser.parse_grammar(grammar);
+				auto end = std::chrono::system_clock::now();
+				cout << "ParseGrammar: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " mics\n";
+
 				if (debug >= 1)
 					parser->print_rules(cout);
+				start = std::chrono::system_clock::now();
 				parser->compile();
+				end = std::chrono::system_clock::now();
+				cout << "CompileGrammar: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " mics\n";
 			}
 			catch (GrammarError& e) {
 				cerr << e.what() << nl;
@@ -847,7 +852,11 @@ void UnitTest::test_case(const char* fname) {
 			if (debug_mem >= 1)
 				cout << "Parse-begin FeatList count: " << FeatList::count << endl;
 			try {
+				auto start = std::chrono::system_clock::now();
 				parser->parse(input);
+				auto end = std::chrono::system_clock::now();
+				cout << "Parse: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " mics\n";
+
 				ptree = parser->make_tree(shared);
 				utree = unify_tree(ptree, shared);
 				ttree = parser->translate_tree(utree, shared);

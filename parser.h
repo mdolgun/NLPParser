@@ -34,6 +34,7 @@ struct Parser : public Grammar{
 	void persist(ofstream& os);
 	void load_grammar(const char* fname);
 	void closure(StateSet& stateset);
+	void print_ruledict(ostream& os);
 	void print_rules(ostream& os);
 	void print_stateset(ostream& os, StateSet& stateset);
 	void print_state(ostream& os, int ruleno, int rulepos);

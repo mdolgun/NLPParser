@@ -116,7 +116,13 @@ void GrammarParser::parse_grammar(istream& is) {
 					throw GrammarError("Invalid Directive Parameter Count: " + buf);
 				grammar->suffixes[params[1]] = params[2];
 			}
-			//el
+			else if (directive == "include") { // %include <file_name>
+				if (params.size() != 2)
+					throw GrammarError("Invalid Directive Parameter Count: " + buf);
+				defines.insert("include");
+				load_grammar(params[1]);
+				defines.erase("include");
+			}
 			//else if (directive == "suffix_macro") { // %suffix_macro <name> <values>
 			//	if (params.size() != 3)
 			//		throw GrammarError("Invalid Directive Parameter Count: " + buf);
@@ -151,7 +157,7 @@ void GrammarParser::load_grammar(string fname) {
 	parse_grammar(f);
 }
 
-PreSymbol* GrammarParser::get_symbol(bool ensure, bool skip_ws) {
+bool GrammarParser::get_symbol(vector<PreSymbol>& symbols, bool ensure, bool skip_ws) {
 	if (skip_ws) {
 		this->skip_ws();
 	}
@@ -160,9 +166,10 @@ PreSymbol* GrammarParser::get_symbol(bool ensure, bool skip_ws) {
 	if (regex_search(begin, end, sm, SYMBOL, regex_constants::match_continuous)) {
 		pos += sm.length();
 		if (sm[1].matched)
-			return new PreSymbol(sm.str(1), true); // NonTerminal
+			symbols.emplace_back(sm.str(1), true); // NonTerminal
 		if (sm[2].matched)
-			return new PreSymbol(sm.str(2), false); // Terminal
+			symbols.emplace_back(sm.str(2), false); // Terminal
+		return true;
 	}
 	if (ensure) {
 		throw GrammarError(
@@ -171,7 +178,7 @@ PreSymbol* GrammarParser::get_symbol(bool ensure, bool skip_ws) {
 			)
 		);
 	}
-	return nullptr;
+	return false;
 }
 
 bool GrammarParser::get_expr(string& out, regex& expr,const char* name, bool ensure, bool skip_ws ) {
@@ -202,11 +209,8 @@ int GrammarParser::get_integer(bool ensure, bool skip_ws) {
 	return stoi(val);
 }
 
-PreSymbol* GrammarParser::get_head() {
-	string name;
-	if (!get_expr(name, NONTERM, "NONTERM", true, false))
-		return nullptr;
-	return new PreSymbol(name, true);
+void GrammarParser::get_head(PreSymbol& head) {
+	get_expr(head.name, NONTERM, "NONTERM", true, false);
 }
 
 bool GrammarParser::get_feat(string& out, bool ensure, bool skip_ws) {
@@ -275,30 +279,28 @@ FeatPtr GrammarParser::parse_feat_list() {
 	return FeatPtr(flist);
 }
 
-void GrammarParser::parse_prod(vector<PreProd*>& prods,const string& macro_name) {
+void GrammarParser::parse_prod(vector<PreProd>& prods,const string& macro_name) {
 	do {
-		PreProd* prod = new PreProd();
-		PreSymbol* symbol = get_symbol(false);
-		while (symbol) {
-			if (symbol->name[0] == '$' && !macro_name.empty()) {
-				auto it = macros[macro_name].find(symbol->name.substr(1));
+		prods.emplace_back();
+		PreProd& prod = prods.back();
+		while (get_symbol(prod, false)) {
+			PreSymbol& symbol = prod.back();
+			if (symbol.name[0] == '$' && !macro_name.empty()) {
+				auto it = macros[macro_name].find(symbol.name.substr(1));
 				if (it == macros[macro_name].end())
-					throw GrammarError("Form not defined: " + symbol->name);
-				symbol->macro_values = &it->second;
+					throw GrammarError("Form not defined: " + symbol.name);
+				symbol.macro_values = &it->second;
 			}
-			if (symbol->nonterminal) {
-				symbol->fparam = parse_fparam_list();
+			if (symbol.nonterminal) {
+				symbol.fparam = parse_fparam_list();
 			}
-			prod->push_back(symbol);
-			symbol = get_symbol(false);
 		}
 		if (get_token("{", false)) {
-			prod->cost = get_integer();
+			prod.cost = get_integer();
 			get_token("}");
 		}			
 		else
-			prod -> cost = 0;
-		prods.push_back(prod);
+			prod.cost = 0;
 	} while (get_token("|",false,true));
 }
 
@@ -396,23 +398,23 @@ void GrammarParser::parse_rule() {
 	string macro_name;
 	if (get_eol(false))
 		return;
-	PreSymbol* head = get_head();
-	if (head->name[0] == '$') {
-		macro_name = head->name.substr(1);
+	PreSymbol head;
+	get_head(head);
+	if (head.name[0] == '$') {
+		macro_name = head.name.substr(1);
 		auto it = macros.find(macro_name);
 		if (it == macros.end())
 			throw GrammarError("Macro not defined: " + macro_name);
-		head->macro_values = &it->second["$"];
+		head.macro_values = &it->second["$"];
 	}
 	get_token("->");
-	vector<PreProd*> llist, rlist;
+	vector<PreProd> llist, rlist;
 	parse_prod(llist, macro_name);
 
 	if (get_token(":", false))
 		parse_prod(rlist, macro_name);
-	else {
-		rlist.push_back(new PreProd());
-	}
+	else
+		rlist.emplace_back();
 
 	FeatPtr feat;
 	if (get_token("[", false))
@@ -422,14 +424,14 @@ void GrammarParser::parse_rule() {
 
 	get_eol();
 	
-	for (auto left : llist)
-		for (auto right : rlist) {
+	for (auto& left : llist)
+		for (auto& right : rlist) {
 			if (macro_name.empty()) {
-				create_rule(new Symbol(head), new Prod(left), new Prod(right), feat);
+				create_rule(new Symbol(&head), new Prod(&left), new Prod(&right), feat);
 			}
 			else {
-				for (int idx = 0; idx < head->macro_values->size(); ++idx) {
-					create_rule(new Symbol(head,idx), new Prod(left,idx), new Prod(right), feat);
+				for (int idx = 0; idx < head.macro_values->size(); ++idx) {
+					create_rule(new Symbol(&head,idx), new Prod(&left,idx), new Prod(&right), feat);
 				}
 			}
 		}

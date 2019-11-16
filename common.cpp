@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "common.h"
+#include "morph.h"
 
 int debug, debug_mem;
 
@@ -144,6 +145,7 @@ void enumerate(TreeNode* node, vector<vector<string>>& out, bool right) {
 }
 
 string post_process(Grammar* grammar,vector<string>& in) {
+	static PostProcessor pp;
 	string prev = "";
 	vector<string> temp;
 	string clipboard;
@@ -175,6 +177,9 @@ string post_process(Grammar* grammar,vector<string>& in) {
 	string result;
 	bool first = true;
 	for (auto& s : temp) {
+		assert(s.size());
+		if (s == "-")
+			continue;
 		bool suffix = s[0] == '-';
 		if (first)
 			first = false;
@@ -187,7 +192,7 @@ string post_process(Grammar* grammar,vector<string>& in) {
 		else
 			result += s;
 	}
-	return result;
+	return pp.map_out(pp.process(pp.map_in(result)));
 }
 
 vector<string> enumerate(Grammar* grammar,TreeNode* node, bool right) {

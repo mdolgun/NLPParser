@@ -77,8 +77,12 @@ struct PreSymbol {
 	string name;
 	FeatParam* fparam = nullptr;
 	const vector<string>* macro_values = nullptr;
-	bool nonterminal;
+	bool nonterminal = true;
+	PreSymbol() = default;
 	PreSymbol(string s,bool nonterm) : name(s), nonterminal(nonterm) { }
+};
+struct PreProd : public vector<PreSymbol> {
+	int cost = 0;
 };
 
 struct Symbol {
@@ -126,17 +130,14 @@ inline ostream& operator<<(ostream& os, const Symbol& obj) {
 	return obj.print(os);
 }
 
-struct PreProd : public vector<PreSymbol*> {
-	int cost = 0;
-};
 
 struct Prod : public vector<Symbol*> {
 	int cost = 0;
 	Prod() = default;
 	Prod(PreProd* other, int macro_idx=-1) {
 		reserve(other->size());
-		for (auto psymbol : *other) {
-			push_back(new Symbol(psymbol, macro_idx));
+		for (auto& psymbol : *other) {
+			push_back(new Symbol(&psymbol, macro_idx));
 		}
 		cost = other->cost;
 	}
@@ -156,8 +157,6 @@ struct Rule {
 	ostream& print(ostream& os) const;
 	string sentence() const;
 };
-
-
 
 using RulePtr = unique_ptr<Rule>;
 
@@ -218,7 +217,6 @@ struct Grammar {
 	TrieNode* root;
 };
 
-vector<string> enumerate(TreeNode* node, bool right=true);
 vector<string> enumerate(Grammar* grammar, TreeNode* node, bool right = true);
 void print_tree(ostream& os, TreeNode* tree, bool indented, bool extended, bool right);
 TreeNode* unify_tree(TreeNode* parent_node, bool shared=false);
