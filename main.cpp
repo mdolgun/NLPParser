@@ -143,15 +143,15 @@ int main()
 	//test_tree("test/ambig_trans.grm", "people like heroes like people", "test/ambig_trans", false, true, true);
 	debug = 0;
 	//test_dir();
-	test_case("pp.tst");
+	test_case("ng.tst");
 	//debug_mem = 1;
 	//if (debug_mem >= 1)
 	//	cout << "FeatList count: " << FeatList::count << endl;
 	//test.test_case("test/trans_case_norm.tst");
 	//if (debug_mem >= 1)
 	//	cout << "FeatList count: " << FeatList::count << endl;
-	debug = 0;
+	debug = 1;
 	//test_translate("test/deep.grm", "she sleeps");
-	//test_translate("np.grm", "house door bell");
+	//test_translate("ng.grm", "house under me");
 	return 0;
 }

@@ -162,7 +162,7 @@ string post_process(Grammar* grammar,vector<string>& in) {
 			if (it == grammar->suffixes.end()) {
 				it = grammar->suffixes.find(item);
 				if (it == grammar->suffixes.end())
-					throw runtime_error("Cannot find suffix default: " + item);
+					throw PostProcessError("Cannot find suffix default: " + item);
 				temp.push_back(it->second);
 			}
 			else {

@@ -553,6 +553,8 @@ TreeNode* Parser::translate_tree(TreeNode* parent_node,FeatParam* fparam,FeatPtr
 					node = new TreeNode(&symbol->name,false);
 				}
 				else { // a non-referenced non-terminal
+					if (!unify_feat(option->feat_list, fparam, parent_feat, true))
+						throw UnifyError("UnifyError");
 					node = make_trans_tree(symbol->id, symbol->fparam, option->feat_list);
 				}
 				option->right.push_back(node);
@@ -913,6 +915,35 @@ void UnitTest::test_case(const char* fname) {
 				}
 				catch (ParseError& e) {
 					cout << "  *ParseError: " << e.what() << nl;
+				}
+			}
+			if (is)
+				command = line;
+			else // eof
+				command = "";
+		}
+		else if (command == "###comment") {
+			string line;
+			while (getline(is, line) && line.substr(0, 3) != "###");
+			if (is)
+				command = line;
+			else // eof
+				command = "";
+		}
+		else if (command == "###params") {
+			string line;
+			while (getline(is, line) && line.substr(0, 3) != "###") {
+				vector<string> io;
+				ltrim(line);
+				rtrim(line);
+				if (line.empty() || line[0] == '#')
+					continue;
+				split(io, line, '=');
+				assert(io.size() == 2);
+				rtrim(io[0]);
+				ltrim(io[1]);
+				if (io[0] == "debug") {
+					debug = atoi(io[1].c_str());
 				}
 			}
 			if (is)

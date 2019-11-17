@@ -188,6 +188,11 @@ public:
 	UnifyError(string msg) : ParseError(msg) {}
 };
 
+struct PostProcessError :public ParseError {
+public:
+	PostProcessError(string msg) : ParseError(msg) {}
+};
+
 struct TreeNode;
 //using TreeNodePtr = unique_ptr<TreeNode>;
 using TreeNodePtr = TreeNode * ;
