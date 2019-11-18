@@ -146,7 +146,7 @@ void GrammarParser::parse_grammar(istream& is) {
 	}
 	if (debug >= 2) {
 		cout << "Trie Dump:\n";
-		dump_trie(root);
+		dump_trie(grammar->root);
 	}
 }
 
@@ -358,7 +358,7 @@ void GrammarParser::create_rule(Symbol* head, Prod* left,Prod* right,FeatPtr& fe
 		grammar->rules.emplace_back(rule); // unique_ptr is created for the rule
 	}
 	else if (flag == TermOnly) { // add whole rule LHS to the dict
-		add_trie(root, rule->sentence(), rule);
+		add_trie(grammar->root, rule->sentence(), rule);
 	}
 	else { // normalize the rule so that it starts with a dummy NonTerminal which contains initial terminals
 		Rule* new_rule = new Rule;
@@ -390,7 +390,7 @@ void GrammarParser::create_rule(Symbol* head, Prod* left,Prod* right,FeatPtr& fe
 
 		if (debug >= 3)
 			cout << "***" << *rule << '\n';
-		add_trie(root, new_rule->sentence(), new_rule);
+		add_trie(grammar->root, new_rule->sentence(), new_rule);
 	}
 }
 void GrammarParser::parse_rule() {

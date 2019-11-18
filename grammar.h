@@ -7,7 +7,6 @@ struct GrammarParser {
 	Grammar* grammar;
 	enum AutoDict { None, TermOnly, All };
 	AutoDict auto_dict = None;
-	TrieNode* root;
 	string buf;
 	size_t pos, line;
 	regex SYMBOL;

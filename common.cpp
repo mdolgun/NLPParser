@@ -425,7 +425,8 @@ void partition(TreeNodePtr node,FeatPtr parent_feat, FeatParam* fparam, vector<t
 	auto end = std::partition(feats.begin() + 1, feats.end(), PartitionPred(feat));
 	if (end == feats.end()) { // there is only a single partition
 		if (!feat) // all items are nullptr
-			throw UnifyError("UnifyError");
+			//throw UnifyError("UnifyError");
+			return;
 		parts.emplace_back(feat, node);
 		return;
 	}
@@ -469,16 +470,18 @@ TreeNodePtr unify_tree(TreeNodePtr node,unordered_set<TreeNode*>* visited) {
 				}
 				FeatParam* fparam = (*body)[rulepos]->fparam;
 				sub_node = unify_tree(sub_node, visited);
+				vector<tuple<vector<TreeNodePtr>, FeatPtr>> new_worklist;
 				for (auto&[work_seq, work_feat] : worklist) {
 					vector<tuple<FeatPtr, TreeNodePtr>> parts;
 					partition(sub_node, work_feat, fparam, parts);
-					vector<tuple<vector<TreeNodePtr>, FeatPtr>> new_worklist;
 					for (auto&[par_feat, par_node] : parts) {
 						new_worklist.emplace_back(work_seq, par_feat);
 						get<0>(new_worklist.back()).push_back(par_node);
 					}
-					worklist = move(new_worklist);
 				}
+				if (!new_worklist.size())
+					throw UnifyError(format("Unify {} {}", node->name, sub_node->name));
+				worklist = move(new_worklist);
 			}
 			for (auto[work_seq, work_feat] : worklist) {
 				OptionNodePtr new_option = new OptionNode(option->rule, work_feat);
@@ -486,7 +489,8 @@ TreeNodePtr unify_tree(TreeNodePtr node,unordered_set<TreeNode*>* visited) {
 				new_options.push_back(new_option);
 			}
 		}
-		catch (UnifyError&) {
+		catch (UnifyError& e) {
+			last_error = e.what();
 		}
 	}
 	if (!new_options.size())

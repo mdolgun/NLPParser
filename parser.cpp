@@ -806,10 +806,20 @@ void UnitTest::diff(string a, string b) {
 	copy(it_b, end_b, it_os);
 	cout << "***" << nl;
 }
-void enumerate(TreeNode* node, vector<vector<string>>& out, bool right);
-string post_process(Grammar* grammar, vector<string>& in);
+
+vector<string> split_strip(const string& s, char delim) {
+	vector<string> result;
+	split(result, s, delim);
+	for (auto& item : result) {
+		ltrim(item);
+		rtrim(item);
+	}
+	return result;
+}
+
 void UnitTest::test_case(const char* fname) {
 	// loads an executes test cases from file "fname"
+	bool profile = false;
 	int case_cnt = 0, success_cnt = 0;
 	ifstream is(fname);
 	if (!is) {
@@ -833,14 +843,14 @@ void UnitTest::test_case(const char* fname) {
 				auto start = std::chrono::system_clock::now();
 				gparser.parse_grammar(grammar);
 				auto end = std::chrono::system_clock::now();
-				cout << "ParseGrammar: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " mics\n";
+				cout << "ParseGrammar: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << " mics\n";
 
 				if (debug >= 1)
 					parser->print_rules(cout);
 				start = std::chrono::system_clock::now();
 				parser->compile();
 				end = std::chrono::system_clock::now();
-				cout << "CompileGrammar: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " mics\n";
+				cout << "CompileGrammar: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << " mics\n";
 			}
 			catch (GrammarError& e) {
 				cerr << e.what() << nl;
@@ -857,7 +867,7 @@ void UnitTest::test_case(const char* fname) {
 				auto start = std::chrono::system_clock::now();
 				parser->parse(input);
 				auto end = std::chrono::system_clock::now();
-				cout << "Parse: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " mics\n";
+				cout << "Parse: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << " mics\n";
 
 				ptree = parser->make_tree(shared);
 				utree = unify_tree(ptree, shared);
@@ -876,39 +886,71 @@ void UnitTest::test_case(const char* fname) {
 		else if (command == "###test") {
 			string line;
 			while (getline(is, line) && line.substr(0, 3) != "###") {
-				vector<string> io;
 				ltrim(line);
 				rtrim(line);
 				if (line.empty() || line[0] == '#')
 					continue;
-				split(io, line, ':');
+				auto io = split_strip(line, ':');
 				assert(io.size() == 2);
-				rtrim(io[0]);
-				ltrim(io[1]);
+				auto expects = split_strip(io[1], '|');
+				assert(expects.size() >= 1);
 				case_cnt++;
+
 				try {
-					cout << io[0] << " : " << io[1] << nl;
+					cout << io[0] << " : " << io[1] << '\n';
+					auto start = std::chrono::system_clock::now();
 					parser->parse(io[0]);
+					auto end = std::chrono::system_clock::now();
+					auto mics_parse = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
+					start = std::chrono::system_clock::now();
 					ptree = parser->make_tree(shared);
+					end = std::chrono::system_clock::now();
+					auto mics_make = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
 					if (debug >= 1)
 						print_tree(cout, ptree, true, true, false);
+
+					start = std::chrono::system_clock::now();
 					utree = unify_tree(ptree, shared);
+					end = std::chrono::system_clock::now();
+					auto mics_unify = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
 					if (debug >= 1)
 						print_tree(cout, utree, true, true, false);
+
+					start = std::chrono::system_clock::now();
 					ttree = parser->translate_tree(utree, shared);
+					end = std::chrono::system_clock::now();
+					auto mics_trans = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
 					if (debug >= 1)
 						print_tree(cout, ttree, true, true, true);
+					
+					start = std::chrono::system_clock::now();
+					auto results = enumerate(parser.get(), ttree);
+					end = std::chrono::system_clock::now();
+					auto mics_post = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
 					bool found = false;
-					for (auto& s : enumerate(parser.get(),ttree)) {
-						if (s == io[1]) {
-							found = true;
-							cout << "  +" << s << nl;
-						}
-						else
-							cout << "  "<< s << nl;
+					for (auto& s : results) {
+						for (auto& expect : expects)
+							if (s == expect) {
+								found = true;
+								break;
+							}
+						cout << "  " << s << nl;
 					}
-					if (found)
+					if (found) {
 						success_cnt++;
+						cout << "  OK\n";
+					}
+					else
+						cout << "  NOK\n";
+
+					if (profile)
+						cout << "  *Parse: " << mics_parse << " Make: " << mics_make << " Unify: " << mics_unify << " Trans: " << mics_trans << " Post: " << mics_post << '\n';
+
 				}
 				catch (UnifyError& e) {
 					cout << "  *UnifyError: " << e.what() << nl;
@@ -944,7 +986,13 @@ void UnitTest::test_case(const char* fname) {
 				ltrim(io[1]);
 				if (io[0] == "debug") {
 					debug = atoi(io[1].c_str());
+				} else if (io[0] == "profile") {
+					profile = bool(atoi(io[1].c_str()));
 				}
+				else if (io[0] == "shared") {
+					profile = bool(atoi(io[1].c_str()));
+				}
+				
 			}
 			if (is)
 				command = line;

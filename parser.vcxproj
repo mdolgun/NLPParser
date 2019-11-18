@@ -78,6 +78,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <LanguageStandard>stdcpplatest</LanguageStandard>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -122,6 +123,7 @@
   <ItemGroup>
     <ClInclude Include="common.h" />
     <ClInclude Include="grammar.h" />
+    <ClInclude Include="morph.h" />
     <ClInclude Include="parser.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="util.h" />
@@ -131,6 +133,7 @@
     <ClCompile Include="common.cpp" />
     <ClCompile Include="grammar.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="morph.cpp" />
     <ClCompile Include="parser.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
     </ClCompile>
