@@ -2,7 +2,7 @@
 #include "common.h"
 #include "morph.h"
 
-int debug, debug_mem;
+int debug, debug_mem, profile;
 
 int TreeNode::id_count = 0;
 
@@ -279,6 +279,146 @@ void print_tree(ostream& os, TreeNode* tree, bool indented, bool extended, bool 
 	else
 		print_tree(os, tree, 0, 0, false, right);
 	os << nl;
+}
+
+inline bool is_suffix(const string& s) {
+	return strchr("+-", s[0]) != nullptr;
+}
+bool is_suffix(TreeNode* node) {
+	if (!node->nonterm)
+		return is_suffix(*node->name);
+	for (auto option : node->options) {
+		if (option->right.size() > 1 && is_suffix(option->right[0])) {
+			return true;
+		}
+	}
+	return false;
+}
+
+void normalize(TreeNode* node, vector<TreeNode*>& out) {
+	if (!node->nonterm) {
+		if (is_suffix(*node->name) && out.size() && out.back()->options.size() > 1) {
+			for (auto option : out.back()->options) {
+				option->right.push_back(node);
+			}
+		}
+		else
+			out.push_back(node);
+	}
+	else if (node->options.size() == 1) {
+		for (auto sub_node : node->options[0]->right) {
+			normalize(sub_node, out);
+		}
+	}
+	else {
+		bool suffix = false;
+		for (auto option : node->options) {
+			vector<TreeNode*> new_right;
+			for (auto sub_node : option->right) {
+				normalize(sub_node, new_right);
+			}
+			if (new_right.size() && is_suffix(new_right[0]))
+				suffix = true;
+			option->right = move(new_right);
+		}
+		if (suffix && out.size() && out.back()->options.size() > 1) {
+			vector<OptionNode*> new_options;
+			for (auto option : node->options)
+				for (auto boption : out.back()->options) {
+					OptionNode* new_option = new OptionNode(*boption);
+					new_option->right = boption->right;
+					new_option->right.insert(new_option->right.end(), option->right.begin(), option->right.end());
+					new_options.push_back(new_option);
+				}
+			out.back()->options = move(new_options);
+		}
+		else {
+			out.push_back(node);
+		}
+	}
+}
+inline void append(string& dst, string& src) {
+	if (src[0] == '-') {
+		dst.insert(dst.end(), src.begin() + 1, src.end()); // append to dst, skipping initial '-'
+	} 
+	else {
+		dst.push_back(' ');
+		dst += src;
+	}
+}
+
+void print_word(ostream& os,vector<TreeNode*>& in,Grammar* grammar) {
+	static string clipboard;
+	static PostProcessor pp;
+	string word;
+	bool first = true;
+	for (auto node : in) {
+		if (node->nonterm) {
+			if (first)
+				first = false;
+			else
+				os << ' ';
+			if (!word.empty()) {
+				os << pp.map_out(pp.process(pp.map_in(word)));
+				os << ' ';
+			}
+			os << '(';
+			bool firstopt = true;
+			for (auto option : node->options) {
+				if (firstopt)
+					firstopt = false;
+				else
+					os << '|';
+				print_word(os, option->right, grammar);
+			}
+			os << ')';
+			word = "";
+		}
+		else {
+			string item = *node->name;
+			if (item == "+copy") {
+				clipboard = word;
+			}
+			else if (item == "+paste") {
+				append(word, clipboard);
+			}
+			else if (item[0] == '+') {
+				auto it = grammar->suffixes.find(word + item);
+				if (it == grammar->suffixes.end()) {
+					it = grammar->suffixes.find(item);
+					if (it == grammar->suffixes.end())
+						throw PostProcessError("Cannot find suffix default: " + item);
+					append(word, it->second);
+				}
+				else {
+					word = it->second;
+				}
+			}
+			else if (item[0] == '-')
+				append(word, item);
+			else {
+				if (!word.empty()) {
+					if (first)
+						first = false;
+					else
+						os << ' ';
+					os << pp.map_out(pp.process(pp.map_in(word)));
+				}
+				word = item;
+			}
+		}
+	}
+	if (!word.empty()) {
+		if (!first)
+			os << ' ';
+		os << pp.map_out(pp.process(pp.map_in(word)));
+	}
+}
+
+void normalize(ostream& os, TreeNode* node, Grammar* grammar) {
+	vector<TreeNode*> out;
+	normalize(node, out);
+	print_word(os, out, grammar);
 }
 
 bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList> src, bool down) {

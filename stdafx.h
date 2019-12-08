@@ -20,6 +20,7 @@
 #include <stdexcept>
 #include <memory>
 #include <cctype>
+#include <variant>
 #if defined(__GNUC__) && __GNU_CC < 8
 	#include <experimental/filesystem>
 #else

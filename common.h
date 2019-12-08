@@ -4,6 +4,7 @@ using namespace std;
 
 extern int debug;
 extern int debug_mem;
+extern int profile;
 
 constexpr char nl = '\n';
 
@@ -38,10 +39,12 @@ public:
 	int size() const {
 		return static_cast<int>(table.size());
 	}
-
+	SymbolTable() = default;
+	SymbolTable(istream& is);
+	void save(ostream& os);
 };
 
-extern SymbolTable symbol_table;
+//extern SymbolTable symbol_table;
 
 using dict = map<string, string>;
 
@@ -56,6 +59,8 @@ struct FeatList : public dict {
 	~FeatList() {
 		count--;
 	}
+	FeatList(istream& is);
+	void save(ostream& os);
 	ostream& print(ostream& os) const;
 };
 inline ostream& operator<<(ostream& os, const FeatList& obj) {
@@ -66,6 +71,9 @@ using FeatRef = shared_ptr<FeatList>&;
 
 
 struct FeatParam : public dict {
+	FeatParam() = default;
+	FeatParam(istream& is,int size);
+	void save(ostream& os);
 	ostream& print(ostream& os) const;
 };
 inline ostream& operator<<(ostream& os, const FeatParam& obj) {
@@ -81,6 +89,7 @@ struct PreSymbol {
 	PreSymbol() = default;
 	PreSymbol(string s,bool nonterm) : name(s), nonterminal(nonterm) { }
 };
+
 struct PreProd : public vector<PreSymbol> {
 	int cost = 0;
 };
@@ -88,19 +97,14 @@ struct PreProd : public vector<PreSymbol> {
 struct Symbol {
 	FeatParam* fparam = nullptr; // feature parameter, nullptr if there is no parameter
 	string name; // name of the symbol (for debugging/display purposes)
-	int id; // unique id of the nonterminal/terminal (which can be referenced from SymbolTable)
+	int id = -1; // unique id of the nonterminal/terminal (which can be referenced from SymbolTable)
 	int idx = -1; // reference index for RHS, shows position of same NT on LHS. e.g.  "VP -> V Obj : Obj V" , Obj(RHS) has ref 1, V(RHS) has ref 0
 	bool nonterminal;
 	ostream& print(ostream& os) const;
-	Symbol(string s, bool nonterm) : name(s) {
-		if (nonterm) {
-			auto pos = s.find('-');
-			if (pos != s.npos)
-				s = s.substr(0, pos);
-		}
-		id = symbol_table.add(s, nonterm);
-		nonterminal = nonterm;
+
+	Symbol(string _name, bool _nonterminal,int _id) : name(_name), nonterminal(_nonterminal), id(_id) {
 	}
+
 	Symbol(Symbol* other) {
 		fparam = other->fparam;
 		name = other->name;
@@ -108,21 +112,25 @@ struct Symbol {
 		idx = other->idx;
 		nonterminal = other->nonterminal;
 	}
-	Symbol(PreSymbol* other,int macro_idx=-1) {
+	Symbol(PreSymbol* other, SymbolTable* symbol_table = nullptr, int macro_idx = -1) {
 		fparam = other->fparam;
 		nonterminal = other->nonterminal;
 		if (macro_idx != -1 && other->macro_values != nullptr)
 			name = other->macro_values->at(macro_idx);
 		else
 			name = other->name;
-		string s = name;
-		if (nonterminal) {
-			auto pos = s.find('-');
-			if (pos != s.npos)
-				s = s.substr(0, pos);
+		if (symbol_table) {
+			string s = name;
+			if (nonterminal) {
+				auto pos = s.find('-');
+				if (pos != s.npos)
+					s = s.substr(0, pos);
+			}
+			id = symbol_table->add(s, other->nonterminal);
 		}
-		id = symbol_table.add(s, other->nonterminal);
 	}
+	Symbol(istream& is, SymbolTable* symbol_table = nullptr);
+	void save(ostream& os);
 };
 
 
@@ -134,14 +142,16 @@ inline ostream& operator<<(ostream& os, const Symbol& obj) {
 struct Prod : public vector<Symbol*> {
 	int cost = 0;
 	Prod() = default;
-	Prod(PreProd* other, int macro_idx=-1) {
+	Prod(PreProd* other, SymbolTable* symbol_table,int macro_idx=-1) {
 		reserve(other->size());
 		for (auto& psymbol : *other) {
-			push_back(new Symbol(&psymbol, macro_idx));
+			push_back(new Symbol(&psymbol, symbol_table, macro_idx));
 		}
 		cost = other->cost;
 	}
-	ostream & print(ostream& os) const;
+	Prod(istream& is);
+	void save(ostream& os);
+	ostream& print(ostream& os) const;
 };
 
 inline ostream& operator<<(ostream& os, const Prod& obj) {
@@ -154,6 +164,15 @@ struct Rule {
 	Prod* left;
 	Prod* right;
 	FeatPtr feat;
+	Rule() {
+		head = nullptr;
+		left = new Prod;
+		right = new Prod;
+		feat = FeatPtr(new FeatList);
+	}
+	Rule(Symbol* _head, Prod* _left, Prod* _right, FeatPtr& _feat) : head(_head),left(_left),right(_right),feat(_feat) { }
+	Rule(istream& is, SymbolTable* symbol_table);
+	void save(ostream& os);
 	ostream& print(ostream& os) const;
 	string sentence() const;
 };
@@ -171,6 +190,9 @@ struct TrieNode {
 	string keys;
 	vector<TrieNode*> children;
 	vector<value_type> values;
+	TrieNode() = default;
+	TrieNode(istream& is, SymbolTable* symbol_table);
+	void save(ostream& os);
 };
 
 struct GrammarError :public runtime_error {
@@ -220,10 +242,12 @@ struct Grammar {
 	unordered_map<string, string> suffixes; // e.g. suffix["ben+e"] = "bana"
 	vector<RulePtr> rules;
 	TrieNode* root;
+	SymbolTable symbol_table;
 };
 
 vector<string> enumerate(Grammar* grammar, TreeNode* node, bool right = true);
 void print_tree(ostream& os, TreeNode* tree, bool indented, bool extended, bool right);
+void normalize(ostream& os, TreeNode* node, Grammar* grammar);
 TreeNode* unify_tree(TreeNode* parent_node, bool shared=false);
 bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList> src, bool down);
 void dot_print(ostream& os, TreeNode* node, bool left = true, bool right = false);

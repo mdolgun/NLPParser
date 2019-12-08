@@ -1,8 +1,6 @@
 #pragma once
 #include "common.h"
 
-
-
 struct GrammarParser {
 	Grammar* grammar;
 	enum AutoDict { None, TermOnly, All };
@@ -46,7 +44,7 @@ struct GrammarParser {
 	FeatParam* parse_fparam_list();
 	FeatPtr parse_feat_list();
 	void parse_prod(vector<PreProd>& prods, const string& macro_name);
-	void create_rule(Symbol* head, Prod* left, Prod* right, FeatPtr& feat);
+	void create_rule(PreSymbol* head, PreProd* left, PreProd* right, FeatPtr& feat, int macro_idx = -1);
 	void parse_rule();
 };
 
