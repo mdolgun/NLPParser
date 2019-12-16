@@ -84,42 +84,7 @@ void print_partial_rule(ostream& os, Rule* rule, int start_pos, int end_pos) {
 		os << (*ptr)->name;
 	}
 }
-/*
-void enumerate(TreeNode* node, vector<string>& out, bool right) {
-	// helper function
-	vector<string> new_out;
-	for (int i = 0; i < node->options.size(); ++i) {
-		auto option = node->options[i];
-		vector<string> temp;
-		if (i == node->options.size() - 1)
-			temp = move(out);
-		else
-			temp = out;
-		auto& ref = right ? option->right : option->left;
-		for (auto sub_node : ref) {
-			if (!sub_node->nonterm)
-				for (auto& s : temp)
-					if ((*sub_node->name)[0] == '-')
-						s += sub_node->name->substr(1);
-					else if (!s.empty())
-						s += " " + *sub_node->name;
-					else
-						s += *sub_node->name;
-			else
-				enumerate(sub_node, temp, right);
-		}
-		copy(make_move_iterator(temp.begin()), make_move_iterator(temp.end()), back_inserter(new_out));
-	}
-	out = move(new_out);
-}
-vector<string> enumerate(TreeNode* node, bool right) {
-	// converts all possible inputs/outputs of a parse tree into a vector of strings
-	// right=true converts outputs(right trees), right=false converts inputs(left trees)
-	vector<string> out = { "" };
-	enumerate(node, out, right);
-	return out;
-}
-*/
+
 void enumerate(TreeNode* node, vector<vector<string>>& out, bool right) {
 	// helper function
 	vector<vector<string>> new_out;
@@ -228,6 +193,10 @@ void print_tree(ostream& os, TreeNode* node, int level, int indent_size, bool ex
 				indent(os, level * indent_size);
 				if (option->rule->id != -1)
 					os << '#' << option->rule->id;
+				if (option->cost)
+					os << '(' << option->cost << ')';
+				if (option->rule->right->cost)
+					os << '{' << option->rule->right->cost << '}';
 				if (option->feat_list)
 					os << *option->feat_list;
 				if (indent_size && node_seq.size())
@@ -281,6 +250,65 @@ void print_tree(ostream& os, TreeNode* tree, bool indented, bool extended, bool 
 	os << nl;
 }
 
+struct Node;
+using Option = pair<vector<Node>, int>;
+using OptionVec = vector<Option>;
+
+struct Node : public variant<string, vector<Option>> {
+	Node(const string& name) : variant<string, vector<Option>>(name) { }
+	Node(OptionVec&& option_vec) : variant<string, vector<Option>>(option_vec) { }
+};
+
+
+ostream& operator<<(ostream& os, vector<Node>& nodes) {
+	bool first_node = true;
+	for (auto& node : nodes) {
+		if (first_node)
+			first_node = false;
+		else
+			os << ' ';
+		if (holds_alternative<string>(node))
+			os << get<string>(node);
+		else {
+			bool first_option = true;
+			os << '(';
+			for (auto&[option, cost] : get<vector<Option>>(node)) {
+				if (first_option)
+					first_option = false;
+				else
+					os << '|';
+				if (cost)
+					os << '{' << cost << '}';
+				os << option;
+			}
+			os << ')';
+		}
+	}
+	return os;
+}
+pair<vector<string>::iterator,bool> match(vector<string>::iterator curr,vector<string>::iterator end, vector<Node>& nodes) {
+	for (auto& node : nodes) {
+		if (curr == end)
+			return { end,false };
+		if (holds_alternative<string>(node)) {
+			if (get<string>(node) != *curr)
+				return { end,false };
+			++curr;
+		}
+		else {
+			for (auto&[option, cost] : get<vector<Option>>(node)) {
+				auto [_curr, found] = match(curr, end, option);
+				if (found) {
+					curr = _curr;
+					goto done;
+				}
+			}
+			return { end,false };
+		done:;
+		}
+	}
+	return { curr, true };
+}
 inline bool is_suffix(const string& s) {
 	return strchr("+-", s[0]) != nullptr;
 }
@@ -288,137 +316,159 @@ bool is_suffix(TreeNode* node) {
 	if (!node->nonterm)
 		return is_suffix(*node->name);
 	for (auto option : node->options) {
-		if (option->right.size() > 1 && is_suffix(option->right[0])) {
+		if (option->right.size() && is_suffix(option->right[0])) {
 			return true;
 		}
 	}
 	return false;
 }
-
-void normalize(TreeNode* node, vector<TreeNode*>& out) {
-	if (!node->nonterm) {
-		if (is_suffix(*node->name) && out.size() && out.back()->options.size() > 1) {
-			for (auto option : out.back()->options) {
-				option->right.push_back(node);
-			}
-		}
-		else
-			out.push_back(node);
-	}
-	else if (node->options.size() == 1) {
-		for (auto sub_node : node->options[0]->right) {
-			normalize(sub_node, out);
-		}
-	}
-	else {
-		bool suffix = false;
-		for (auto option : node->options) {
-			vector<TreeNode*> new_right;
-			for (auto sub_node : option->right) {
-				normalize(sub_node, new_right);
-			}
-			if (new_right.size() && is_suffix(new_right[0]))
-				suffix = true;
-			option->right = move(new_right);
-		}
-		if (suffix && out.size() && out.back()->options.size() > 1) {
-			vector<OptionNode*> new_options;
-			for (auto option : node->options)
-				for (auto boption : out.back()->options) {
-					OptionNode* new_option = new OptionNode(*boption);
-					new_option->right = boption->right;
-					new_option->right.insert(new_option->right.end(), option->right.begin(), option->right.end());
-					new_options.push_back(new_option);
-				}
-			out.back()->options = move(new_options);
-		}
-		else {
-			out.push_back(node);
-		}
-	}
-}
-inline void append(string& dst, string& src) {
+inline void append(string& dst, const string& src) {
 	if (src[0] == '-') {
 		dst.insert(dst.end(), src.begin() + 1, src.end()); // append to dst, skipping initial '-'
-	} 
+	}
 	else {
 		dst.push_back(' ');
 		dst += src;
 	}
 }
-
-void print_word(ostream& os,vector<TreeNode*>& in,Grammar* grammar) {
+bool appendix(Node& node, const string& item, Grammar* grammar) {
+	string& word = get<string>(node);
 	static string clipboard;
-	static PostProcessor pp;
-	string word;
-	bool first = true;
-	for (auto node : in) {
-		if (node->nonterm) {
-			if (first)
-				first = false;
+	if (item == "+copy") {
+		clipboard = word;
+	}
+	else if (item == "+paste") {
+		append(word, clipboard);
+	}
+	else if (item[0] == '+') {
+		auto it = grammar->suffixes.find(word + item);
+		if (it == grammar->suffixes.end()) {
+			it = grammar->suffixes.find(item);
+			if (it == grammar->suffixes.end())
+				throw PostProcessError("Cannot find suffix default: " + item);
+			//if (it->second == "-")
+			//	return false;
+			append(word, it->second);
+		}
+		else if (it->second != "-") {
+			word = it->second;
+		}
+		else
+			return false;
+	}
+	else if (item[0] == '-')
+		append(word, item);
+	else {
+		assert(0);
+	}
+	return true;
+}
+
+void convert(TreeNode* node, vector<Node>& out, Grammar* grammar) {
+	Node* prev_node = out.size() ? &out.back() : nullptr;
+	if (!node->nonterm) {
+		if (prev_node && is_suffix(*node->name)){
+			if (holds_alternative<string>(*prev_node)) {
+				if (!appendix(*prev_node, *node->name, grammar)) {
+					out.pop_back();
+					prev_node = out.size() ? &out.back() : nullptr;
+				}
+			}
 			else
-				os << ' ';
-			if (!word.empty()) {
-				os << pp.map_out(pp.process(pp.map_in(word)));
-				os << ' ';
-			}
-			os << '(';
-			bool firstopt = true;
+				for (auto&[nodes, cost] : get<OptionVec>(*prev_node))
+					convert(node, nodes, grammar);
+		}
+		else
+			out.emplace_back(*node->name);
+	}
+	else if (node->options.size() == 1)
+		for (auto sub_node : node->options[0]->right) 
+			convert(sub_node, out, grammar);
+	else if(prev_node && is_suffix(node)) {
+		if (holds_alternative<string>(*prev_node)) {
+			OptionVec new_options;
 			for (auto option : node->options) {
-				if (firstopt)
-					firstopt = false;
-				else
-					os << '|';
-				print_word(os, option->right, grammar);
+				vector<Node> new_nodes;
+				new_nodes.emplace_back(get<string>(*prev_node));
+				for (auto sub_node : option->right) {
+					convert(sub_node, new_nodes, grammar);
+				}
+				new_options.emplace_back(move(new_nodes), option->cost);
 			}
-			os << ')';
-			word = "";
+			//prev_node->emplace<OptionVec>(move(new_options));
+			*prev_node = move(new_options);
 		}
 		else {
-			string item = *node->name;
-			if (item == "+copy") {
-				clipboard = word;
-			}
-			else if (item == "+paste") {
-				append(word, clipboard);
-			}
-			else if (item[0] == '+') {
-				auto it = grammar->suffixes.find(word + item);
-				if (it == grammar->suffixes.end()) {
-					it = grammar->suffixes.find(item);
-					if (it == grammar->suffixes.end())
-						throw PostProcessError("Cannot find suffix default: " + item);
-					append(word, it->second);
-				}
-				else {
-					word = it->second;
+			auto& options = get<OptionVec>(*prev_node);
+			OptionVec new_options;
+			for (auto option : node->options) {
+				for (auto&[nodes, cost] : options) {
+					vector<Node> new_nodes = nodes;
+					for (auto sub_node : option->right) {
+						convert(sub_node, new_nodes, grammar);
+					}
+					new_options.emplace_back(move(new_nodes), option->cost + cost);
 				}
 			}
-			else if (item[0] == '-')
-				append(word, item);
-			else {
-				if (!word.empty()) {
-					if (first)
-						first = false;
-					else
-						os << ' ';
-					os << pp.map_out(pp.process(pp.map_in(word)));
-				}
-				word = item;
-			}
+			//prev_node->emplace<OptionVec>(move(new_options));
+			*prev_node = move(new_options);
 		}
 	}
-	if (!word.empty()) {
-		if (!first)
-			os << ' ';
-		os << pp.map_out(pp.process(pp.map_in(word)));
+	else {
+		OptionVec new_options;
+		for (auto option : node->options) {
+			vector<Node> new_nodes;
+			for (auto sub_node : option->right)
+				convert(sub_node, new_nodes, grammar);
+			new_options.emplace_back(move(new_nodes), option->cost);
+		}
+		out.emplace_back(move(new_options));
 	}
 }
 
-void normalize(ostream& os, TreeNode* node, Grammar* grammar) {
-	vector<TreeNode*> out;
-	normalize(node, out);
-	print_word(os, out, grammar);
+void postprocess(vector<Node>& nodes) {
+	static PostProcessor pp;
+	for (auto& node : nodes) {
+		if (holds_alternative<string>(node))
+			node = pp.map_out(pp.process(pp.map_in(get<string>(node))));
+		else
+			for (auto& option : get<OptionVec>(node))
+				postprocess(option.first);
+	}
+}
+
+void enumerate(vector<Node>& nodes, EnumVec& out) {
+	for (auto& node : nodes) {
+		if (holds_alternative<string>(node)) {
+			for (auto& [item, cost] : out) {
+				item.push_back(' ');
+				item += get<string>(node);
+			}
+		}
+		else {
+			EnumVec new_out;
+			for (auto& [option, cost] : get<OptionVec>(node)) {
+				EnumVec sub_out= { {"",0} };
+				enumerate(option, sub_out);
+				for (auto& [out_item, out_cost] : out)
+					for(auto& [sub_item, sub_cost] : sub_out)
+						new_out.emplace_back(out_item + sub_item, out_cost+cost);
+			}
+			out = move(new_out);
+		}
+	}
+}
+
+void convert(ostream& os, TreeNode* node, Grammar* grammar,EnumVec& enums) {
+	vector<Node> out;
+	convert(node, out, grammar);
+	postprocess(out);
+	os << out << nl;
+	enums.emplace_back("", 0);
+	enumerate(out, enums);
+	for (auto& [item,cost] : enums)
+		item.erase(0, 1);
+	sort(enums.begin(), enums.end(), [](pair<string, int>& a, pair<string, int>& b) { return a.second < b.second; });
 }
 
 bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList> src, bool down) {

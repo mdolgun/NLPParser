@@ -19,7 +19,7 @@ struct GrammarParser {
 	unordered_map<int, vector<reference_wrapper<Rule>>> tail_map; // keeps the vector of tail-transformed rules for a NonTerminal id
 	// because we cannot override pointer operator==, we had to implement it as vector of Rule references
 	GrammarParser(Grammar* _grammar) :
-		SYMBOL(R"#((\$?[_A-Z][-_A-Za-z0-9]*'*)|("[^"]*"|\$?[^|{:[_A-Z#][\S]*))#"),
+		SYMBOL(R"#((\$?[_A-Z][-_A-Za-z0-9]*'*)|("[^"]*"|\$?[^|{:[_A-Z#!][\S]*))#"),
 		NONTERM(R"#(\$?[_A-Z][-_A-Za-z0-9]*'*)#"),
 		FEAT(R"#(\*?[-_A-Za-z0-9]*)#"),
 		INTEGER(R"#(-?[1-9][0-9]*)#")

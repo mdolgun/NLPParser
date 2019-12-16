@@ -92,6 +92,7 @@ struct PreSymbol {
 
 struct PreProd : public vector<PreSymbol> {
 	int cost = 0;
+	bool cut = false;
 };
 
 struct Symbol {
@@ -141,6 +142,7 @@ inline ostream& operator<<(ostream& os, const Symbol& obj) {
 
 struct Prod : public vector<Symbol*> {
 	int cost = 0;
+	bool cut = false;
 	Prod() = default;
 	Prod(PreProd* other, SymbolTable* symbol_table,int macro_idx=-1) {
 		reserve(other->size());
@@ -148,6 +150,7 @@ struct Prod : public vector<Symbol*> {
 			push_back(new Symbol(&psymbol, symbol_table, macro_idx));
 		}
 		cost = other->cost;
+		cut = other->cut;
 	}
 	Prod(istream& is);
 	void save(ostream& os);
@@ -223,6 +226,7 @@ struct OptionNode {
 	vector<TreeNodePtr> left; // left productions of this option
 	vector<TreeNodePtr> right; // right productions of this option
 	FeatPtr feat_list; // feature list associated with this option
+	int cost = 0;
 	OptionNode(Rule* _rule, FeatPtr _feat_list) : rule(_rule),feat_list(_feat_list) { }
 };
 //using OptionNodePtr = unique_ptr<OptionNode>;
@@ -245,9 +249,11 @@ struct Grammar {
 	SymbolTable symbol_table;
 };
 
+using EnumVec = vector<pair<string, int>>;
+
 vector<string> enumerate(Grammar* grammar, TreeNode* node, bool right = true);
 void print_tree(ostream& os, TreeNode* tree, bool indented, bool extended, bool right);
-void normalize(ostream& os, TreeNode* node, Grammar* grammar);
+void convert(ostream& os, TreeNode* node, Grammar* grammar, EnumVec& enums);
 TreeNode* unify_tree(TreeNode* parent_node, bool shared=false);
 bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList> src, bool down);
 void dot_print(ostream& os, TreeNode* node, bool left = true, bool right = false);

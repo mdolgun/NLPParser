@@ -322,6 +322,8 @@ void GrammarParser::parse_prod(vector<PreProd>& prods,const string& macro_name) 
 		}			
 		else
 			prod.cost = 0;
+		if (get_token("!", false))
+			prod.cut = true;
 	} while (get_token("|",false,true));
 }
 
@@ -348,6 +350,8 @@ bool operator==(const Rule& a, const Rule& b) {
 void resolve_reference(Prod* left, Prod* right) {
 	// given LHS and RHS of a rule, for nonterminals on both sides, RHS symbol is added an reference index for the LHS position of the symbol
 	for (auto rsymbol : *right) {
+		if (!rsymbol->nonterminal)
+			continue;
 		auto p = find_if(left->begin(), left->end(), [&rsymbol](auto lsymbol) {return lsymbol->name == rsymbol->name; }); // find the first symbol on the left, where it matches the right symbol
 		if (p != left->end()) {
 			rsymbol->idx = p - left->begin();

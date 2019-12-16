@@ -167,25 +167,40 @@ void UnitTest::test_case(string fname) {
 					if (debug >= 1)
 						print_tree(cout, ttree, true, true, true);
 
-					//print_trans(cout, ttree); cout << nl;
-					//cout << '#' << get_trans(ttree) << nl;
+					//{
+					//	start = std::chrono::system_clock::now();
+					//	auto results = enumerate(parser.get(), ttree);
+					//	end = std::chrono::system_clock::now();
+					//	auto mics_post = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+					//	cout << "post_old: " << mics_post << nl;
 
+					//	bool found = false;
+					//	for (auto& s : results) {
+					//		for (auto& expect : expects)
+					//			if (s == expect) {
+					//				found = true;
+					//				break;
+					//			}
+					//		cout << "  " << s << nl;
+					//	}
+					//}
+					EnumVec results;
 					start = std::chrono::system_clock::now();
-					auto results = enumerate(parser.get(), ttree);
+					cout << '#'; convert(cout, ttree, parser.get(), results); 
 					end = std::chrono::system_clock::now();
 					auto mics_post = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 					total_post += mics_post;
 
 					bool found = false;
-					for (auto& s : results) {
+					for (auto& [s,cost] : results) {
 						for (auto& expect : expects)
 							if (s == expect) {
 								found = true;
 								break;
 							}
-						cout << "  " << s << nl;
+						cout << " *" << s << " {" << cost << "}\n";
 					}
-					cout << '#'; normalize(cout, ttree, parser.get()); cout << nl;
+					
 					if (found) {
 						success_cnt++;
 						cout << "  OK\n";
@@ -382,7 +397,6 @@ void test_translate(const char* grm,const char* input) {
 
 }
 //#define NO_UNIFY
-//#define NEW_UNIFY
 void test_tree(string grammar_file, string sentence, string out_file, bool shared = false, bool left = true, bool right = true) {
 	Parser parser;
 	parser.load_grammar(grammar_file.c_str());

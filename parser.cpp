@@ -471,6 +471,16 @@ TreeNode* Parser::make_tree(bool shared) {
 		return make_tree(top_edge);
 }
 
+int get_cost(TreeNode* node) {
+	if (!node->options.size())
+		return 0;
+	int cost = INT_MAX;
+	for (auto option : node->options)
+		if (option->cost < cost)
+			cost = option->cost;
+	return cost;
+}
+
 TreeNode* Parser::make_trans_tree(int id,FeatParam* fparam,FeatPtr parent_feat) {
 	// make a translated sub tree (i.e. RHS-only subtree) from current id,parent feature,feature parameters
 	TreeNode* node = new TreeNode(&symbol_table.get(id), true);
@@ -481,13 +491,13 @@ TreeNode* Parser::make_trans_tree(int id,FeatParam* fparam,FeatPtr parent_feat) 
 			if( !unify_feat(feat_list, fparam, parent_feat, true) )
 				throw UnifyError("UnifyError");
 			OptionNode* option = new OptionNode(rule, feat_list);
-			bool cut = rule->right->cost < 0;
+			option->cost = rule->right->cost;
 			for (auto symbol : *rule->right) {
 				if (symbol->nonterminal) {
-					if (symbol->idx == -1) { // a non-referenced nonterminal
-						option->right.push_back(make_trans_tree(symbol->id, symbol->fparam, feat_list));
-					}
-					// else what??
+					assert(symbol->idx == -1); // a non-referenced nonterminal
+					TreeNode* sub_node = make_trans_tree(symbol->id, symbol->fparam, feat_list);
+					option->cost += get_cost(sub_node);
+					option->right.push_back(sub_node);
 				}
 				else { // terminal
 					//assert(!symbol->nonterminal); // cannot be a non-referenced nonterminal
@@ -497,7 +507,7 @@ TreeNode* Parser::make_trans_tree(int id,FeatParam* fparam,FeatPtr parent_feat) 
 				}
 			}
 			node->options.push_back(option);
-			if (cut)
+			if (rule->right->cut)
 				break;
 		}
 		catch (UnifyError&) {
@@ -522,6 +532,7 @@ struct FeatPred {
 		return true;
 	}
 };
+
 
 TreeNode* Parser::translate_tree_shared(unordered_map<TreeNode*, vector<TreeNode*>>& visited,TreeNode* node, FeatParam* fparam, FeatPtr parent_feat) {
 	// translate a sub-tree
@@ -552,6 +563,7 @@ TreeNode* Parser::translate_tree_shared(unordered_map<TreeNode*, vector<TreeNode
 			auto new_option = new OptionNode(option->rule, p.first);
 			new_option->left = option->left; //??
 			option = new_option;
+			option->cost = option->rule->right->cost;
 
 			assert(option->right.size() == 0);
 
@@ -568,6 +580,7 @@ TreeNode* Parser::translate_tree_shared(unordered_map<TreeNode*, vector<TreeNode
 				else { // a non-referenced non-terminal
 					sub_node = make_trans_tree(symbol->id, symbol->fparam, option->feat_list);
 				}
+				option->cost += get_cost(sub_node);
 				option->right.push_back(sub_node);
 			}
 			new_options.push_back(option);
@@ -584,40 +597,44 @@ TreeNode* Parser::translate_tree_shared(unordered_map<TreeNode*, vector<TreeNode
 	return node;
 }
 
-TreeNode* Parser::translate_tree(TreeNode* parent_node,FeatParam* fparam,FeatPtr parent_feat) {
+TreeNode* Parser::translate_tree(TreeNode* node,FeatParam* fparam,FeatPtr parent_feat) {
 	// translate a sub-tree
 	vector<OptionNode*> new_options;
-	for (auto option : parent_node->options) {
+	for (auto option : node->options) {
 		try {
 			Prod* right = option->rule->right;
 			OptionNode* new_option = new OptionNode(option->rule, option->feat_list);
 			if (!unify_feat(new_option->feat_list, fparam, parent_feat, true))
 				continue;
 			new_option->left = option->left;
+			new_option->cost = option->rule->right->cost;
 			for (auto symbol : *right) {
-				TreeNode* node;
+				TreeNode* sub_node;
 				if (symbol->idx != -1) { // a referenced nonterminal
-					node = new_option->left.at(symbol->idx);
-					node = translate_tree(node, symbol->fparam, new_option->feat_list);
+					sub_node = new_option->left.at(symbol->idx);
+					sub_node = translate_tree(sub_node, symbol->fparam, new_option->feat_list);
 				}
 				else if (!symbol->nonterminal) { // a terminal
-					node = new TreeNode(&symbol->name,false);
+					sub_node = new TreeNode(&symbol->name,false);
 				}
 				else { // a non-referenced non-terminal
 					if (!unify_feat(new_option->feat_list, fparam, parent_feat, true))
 						throw UnifyError("UnifyError");
-					node = make_trans_tree(symbol->id, symbol->fparam, new_option->feat_list);
+					sub_node = make_trans_tree(symbol->id, symbol->fparam, new_option->feat_list);
 				}
-				new_option->right.push_back(node);
+				new_option->cost += get_cost(sub_node);
+				new_option->right.push_back(sub_node);
 			}
 			new_options.push_back(new_option);
+			if (option->rule->right->cut)
+				break;
 		}
 		catch (UnifyError&) {
 		}
 	}
 	if (!new_options.size())
 		throw UnifyError("translate_tree");
-	TreeNode* new_node = new TreeNode(parent_node);
+	TreeNode* new_node = new TreeNode(node);
 	new_node->options = move(new_options);
 	return new_node;
 }
@@ -633,10 +650,22 @@ TreeNode* Parser::translate_tree(TreeNode* parent_node,bool shared) {
 	}
 }
 
+void split_sentence(string& input, vector<string>& words, vector<int>& word_pos) {
+	std::regex ws_re("\\s+|(?='[^t])");
+	std::sregex_token_iterator end;
+	for (auto it = std::sregex_token_iterator(input.begin(), input.end(), ws_re, -1); it != end; ++it) {
+		words.push_back(*it);
+		word_pos.push_back(it->first - input.begin());
+	}
+}
+
 void Parser::parse(string input_str) {
-	vector<string> input;
-	split(input, input_str, ' ');
 	// parses input string using current grammar, throwing ParseError if parsing fails, the parse tree can be later retrieved from "edges"
+
+	vector<string> input;
+	vector<int> input_pos;
+	split_sentence(input_str, input, input_pos);
+	
 	p_input = &input;
 	edges.clear();
 
@@ -650,12 +679,17 @@ void Parser::parse(string input_str) {
 	vector<unordered_set<int>> act_states(inlen+1); // active set of states for each position
 	vector<unordered_set<Edge>> act_edges(inlen+1); // active set of edges for each position
 	act_states[0].insert(0); // add initial state to initial position
-	int char_pos = 0;
 	for (int pos = 0; pos <= inlen; pos++) {
-
-		int token = -1;
-		if( pos!=inlen ) // if not end-of-input, which has special token value -1
+		int token; // current token(word) id, for end of word or not defined, it has value of -1
+		int char_pos; // char_pos of the next word in the sentence(used for dictionary prefix search)
+		if (pos == inlen) { // end-of-input
+			token = -1;
+			char_pos = input_str.size();
+		}
+		else {
 			token = symbol_table.map(input[pos]);
+			char_pos = input_pos[pos];
+		}
 		vector<Edge> edge_list(act_edges[pos].size()); // list of active edges for current position
 		copy(act_edges[pos].cbegin(), act_edges[pos].cend(), edge_list.begin());
 		auto& active = act_states[pos]; // active states for current position
@@ -824,12 +858,6 @@ void Parser::parse(string input_str) {
 				}
 			}
 		}
-		// find char_pos of the next word in the sentence (used for dictionary prefix search)
-		char_pos = input_str.find(' ', char_pos); 
-		if (char_pos == string::npos)
-			char_pos = input_str.size();
-		else
-			char_pos++; // skip space
 	}
 	throw ParseError("No Active State Left");
 }

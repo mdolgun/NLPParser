@@ -58,12 +58,16 @@ Rule::Rule(istream& is,SymbolTable* symbol_table) : head(new Symbol(is,symbol_ta
 }
 
 void Prod::save(ostream& os) {
+	::save(os, cost);
+	::save(os, cut);
 	::save(os, (int)size());
 	for (auto symbol : *this) {
 		symbol->save(os);
 	}
 }
 Prod::Prod(istream& is) {
+	load(is, cost);
+	load(is, cut);
 	int size;
 	load(is, size);
 	reserve(size);
