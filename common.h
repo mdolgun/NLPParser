@@ -85,6 +85,7 @@ struct PreSymbol {
 	string name;
 	FeatParam* fparam = nullptr;
 	const vector<string>* macro_values = nullptr;
+	bool macro_suffix = false;
 	bool nonterminal = true;
 	PreSymbol() = default;
 	PreSymbol(string s,bool nonterm) : name(s), nonterminal(nonterm) { }
@@ -117,7 +118,10 @@ struct Symbol {
 		fparam = other->fparam;
 		nonterminal = other->nonterminal;
 		if (macro_idx != -1 && other->macro_values != nullptr)
-			name = other->macro_values->at(macro_idx);
+			if (other->macro_suffix)
+				name = other->macro_values->at(macro_idx) + other->name;
+			else
+				name = other->macro_values->at(macro_idx);
 		else
 			name = other->name;
 		if (symbol_table) {

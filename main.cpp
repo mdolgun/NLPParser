@@ -167,23 +167,6 @@ void UnitTest::test_case(string fname) {
 					if (debug >= 1)
 						print_tree(cout, ttree, true, true, true);
 
-					//{
-					//	start = std::chrono::system_clock::now();
-					//	auto results = enumerate(parser.get(), ttree);
-					//	end = std::chrono::system_clock::now();
-					//	auto mics_post = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-					//	cout << "post_old: " << mics_post << nl;
-
-					//	bool found = false;
-					//	for (auto& s : results) {
-					//		for (auto& expect : expects)
-					//			if (s == expect) {
-					//				found = true;
-					//				break;
-					//			}
-					//		cout << "  " << s << nl;
-					//	}
-					//}
 					EnumVec results;
 					start = std::chrono::system_clock::now();
 					cout << '#'; convert(cout, ttree, parser.get(), results); 

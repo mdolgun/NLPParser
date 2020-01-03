@@ -514,7 +514,7 @@ TreeNode* Parser::make_trans_tree(int id,FeatParam* fparam,FeatPtr parent_feat) 
 		}
 	}
 	if (!node->options.size())
-		throw UnifyError("make_trans_tree");
+		throw UnifyError(format("make_trans_tree {}", symbol_table.get(id)));
 	return node;
 }
 
@@ -553,7 +553,7 @@ TreeNode* Parser::translate_tree_shared(unordered_map<TreeNode*, vector<TreeNode
 	auto node_it = find_if(node_vec.begin(), node_vec.end(), feat_pred);
 	if (node_it != node_vec.end())
 		return *node_it;
-
+	string last_error;
 	// if no cached value matches current options' features, then create new options and a new node
 	vector<OptionNode*> new_options;
 	for (int i = 0; i < feat_pred.feat_vec.size(); ++i) {
@@ -585,11 +585,12 @@ TreeNode* Parser::translate_tree_shared(unordered_map<TreeNode*, vector<TreeNode
 			}
 			new_options.push_back(option);
 		}
-		catch (UnifyError&) {
+		catch (UnifyError& e) {
+			last_error = e.what();
 		}
 	}
 	if (!new_options.size())
-		throw UnifyError("translate_tree");
+		throw UnifyError(last_error);
 
 	node = new TreeNode(node->name, node->nonterm);
 	node->options = move(new_options);
@@ -599,6 +600,7 @@ TreeNode* Parser::translate_tree_shared(unordered_map<TreeNode*, vector<TreeNode
 
 TreeNode* Parser::translate_tree(TreeNode* node,FeatParam* fparam,FeatPtr parent_feat) {
 	// translate a sub-tree
+	string last_error;
 	vector<OptionNode*> new_options;
 	for (auto option : node->options) {
 		try {
@@ -629,11 +631,12 @@ TreeNode* Parser::translate_tree(TreeNode* node,FeatParam* fparam,FeatPtr parent
 			if (option->rule->right->cut)
 				break;
 		}
-		catch (UnifyError&) {
+		catch (UnifyError& e) {
+			last_error = e.what();
 		}
 	}
 	if (!new_options.size())
-		throw UnifyError("translate_tree");
+		throw UnifyError(last_error);
 	TreeNode* new_node = new TreeNode(node);
 	new_node->options = move(new_options);
 	return new_node;
@@ -651,8 +654,8 @@ TreeNode* Parser::translate_tree(TreeNode* parent_node,bool shared) {
 }
 
 void split_sentence(string& input, vector<string>& words, vector<int>& word_pos) {
-	std::regex ws_re("\\s+|(?='[^t])");
-	std::sregex_token_iterator end;
+	static std::regex ws_re("\\s+");
+	static std::sregex_token_iterator end;
 	for (auto it = std::sregex_token_iterator(input.begin(), input.end(), ws_re, -1); it != end; ++it) {
 		words.push_back(*it);
 		word_pos.push_back(it->first - input.begin());
@@ -661,6 +664,8 @@ void split_sentence(string& input, vector<string>& words, vector<int>& word_pos)
 
 void Parser::parse(string input_str) {
 	// parses input string using current grammar, throwing ParseError if parsing fails, the parse tree can be later retrieved from "edges"
+	static regex input_re("'(?=[^t])");
+	input_str = regex_replace(input_str, input_re, " '");
 
 	vector<string> input;
 	vector<int> input_pos;

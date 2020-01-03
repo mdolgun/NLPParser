@@ -670,7 +670,7 @@ TreeNodePtr unify_tree(TreeNodePtr node,unordered_set<TreeNode*>* visited) {
 					}
 				}
 				if (!new_worklist.size())
-					throw UnifyError(format("Unify {} {}", node->name, sub_node->name));
+					throw UnifyError(format("Unify {} {}", *node->name, *sub_node->name));
 				worklist = move(new_worklist);
 			}
 			for (auto[work_seq, work_feat] : worklist) {

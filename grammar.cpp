@@ -307,9 +307,19 @@ void GrammarParser::parse_prod(vector<PreProd>& prods,const string& macro_name) 
 		while (get_symbol(prod, false)) {
 			PreSymbol& symbol = prod.back();
 			if (symbol.name[0] == '$' && !macro_name.empty()) {
-				auto it = macros[macro_name].find(symbol.name.substr(1));
+				auto pos = symbol.name.find('$', 1);
+				string macro_form;
+				if (pos != string::npos) { // e.g. $V -> $V$1 Obj : Obj Case $V$1
+					assert(symbol.name.substr(1, pos - 1) == macro_name);
+					symbol.macro_suffix = true;
+					symbol.name.erase(0, pos + 1); // $V$1 => 1
+					macro_form = "$";
+				}
+				else // e.g. $V -> $go : git
+					macro_form = symbol.name.substr(1);
+				auto it = macros[macro_name].find(macro_form);
 				if (it == macros[macro_name].end())
-					throw GrammarError("Form not defined: " + symbol.name);
+					throw GrammarError(format("Form {} not defined for macro {}", macro_form, macro_name));
 				symbol.macro_values = &it->second;
 			}
 			if (symbol.nonterminal) {
@@ -374,7 +384,7 @@ void GrammarParser::create_rule(PreSymbol* head, PreProd* left, PreProd* right, 
 				flag = None;
 	}
 	if (flag == None) { // don't add to dict
-		Rule* rule = new Rule(new Symbol(head, symbol_table, macro_idx), new Prod(left, symbol_table, macro_idx), new Prod(right, symbol_table), feat);
+		Rule* rule = new Rule(new Symbol(head, symbol_table, macro_idx), new Prod(left, symbol_table, macro_idx), new Prod(right, symbol_table, macro_idx), feat);
 		resolve_reference(rule->left, rule->right);
 		rule->id = grammar->rules.size();
 		grammar->rules.emplace_back(rule); // unique_ptr is created for the rule
@@ -431,7 +441,14 @@ void GrammarParser::parse_rule() {
 	PreSymbol head;
 	get_head(head);
 	if (head.name[0] == '$') {
-		macro_name = head.name.substr(1);
+		auto pos = head.name.find('$', 1);
+		if (pos != string::npos) { // e.g. $V$0
+			head.macro_suffix = true;
+			macro_name = head.name.substr(1, pos - 1);
+			head.name.erase(0, pos + 1); // $V$1 => 1
+		}
+		else // e.g. $V
+			macro_name = head.name.substr(1);
 		auto it = macros.find(macro_name);
 		if (it == macros.end())
 			throw GrammarError("Macro not defined: " + macro_name);
