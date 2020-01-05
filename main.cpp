@@ -261,9 +261,12 @@ void UnitTest::test_case(string fname) {
 					print_tree(out, ttree, true, true, false);
 				else if (command == "###pformatr_ext")
 					print_tree(out, ttree, true, true, true);
-				else if (command == "###enum")
-					for (auto& s : enumerate(parser.get(), ttree))
+				else if (command == "###enum") {
+					EnumVec results;
+					convert(cout, ttree, parser.get(), results);
+					for (auto&[s, cost] : results)
 						out << s << '\n';
+				}
 				else
 				{
 					cerr << "Invalid Section:" << command << nl;
@@ -308,7 +311,7 @@ void UnitTest::test_dir(string dirname) {
 void UnitTest::print_result() {
 	cout << "TOTAL: " << success_total << "/" << case_total << nl;
 }
-
+/*
 
 void test_ambig() {
 	try {
@@ -419,7 +422,7 @@ void test_tree(string grammar_file, string sentence, string out_file, bool share
 		cout << "ParseError" << nl;
 	}
 }
-
+*/
 void test_dir(const char* dirname = "test") {
 	UnitTest test(false);
 	test.test_dir(dirname);

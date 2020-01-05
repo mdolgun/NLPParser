@@ -85,90 +85,90 @@ void print_partial_rule(ostream& os, Rule* rule, int start_pos, int end_pos) {
 	}
 }
 
-void enumerate(TreeNode* node, vector<vector<string>>& out, bool right) {
-	// helper function
-	vector<vector<string>> new_out;
-	for (int i = 0; i < node->options.size(); ++i) {
-		auto option = node->options[i];
-		vector<vector<string>> temp;
-		if (i == node->options.size() - 1)
-			temp = move(out);
-		else
-			temp = out;
-		auto& ref = right ? option->right : option->left;
-		for (auto sub_node : ref) {
-			if (!sub_node->nonterm)
-				for (auto& item : temp) {
-					item.push_back(*sub_node->name);
-				}
-			else
-				enumerate(sub_node, temp, right);
-		}
-		copy(make_move_iterator(temp.begin()), make_move_iterator(temp.end()), back_inserter(new_out));
-	}
-	out = move(new_out);
-}
-
-string post_process(Grammar* grammar,vector<string>& in) {
-	static PostProcessor pp;
-	string prev = "";
-	vector<string> temp;
-	string clipboard;
-	temp.reserve(in.size());
-	for (auto& item : in) {
-		if (item == "+copy") {
-			clipboard = item;
-		}
-		else if (item == "+paste") {
-			temp.push_back(clipboard);
-		}
-		if (item[0] == '+') {
-			auto it = grammar->suffixes.find(prev + item);
-			if (it == grammar->suffixes.end()) {
-				it = grammar->suffixes.find(item);
-				if (it == grammar->suffixes.end())
-					throw PostProcessError("Cannot find suffix default: " + item);
-				temp.push_back(it->second);
-			}
-			else {
-				temp.pop_back();
-				temp.push_back(it->second);
-			}
-		}
-		else
-			temp.push_back(item);
-		prev = item;
-	}
-	string result;
-	bool first = true;
-	for (auto& s : temp) {
-		assert(s.size());
-		if (s == "-")
-			continue;
-		bool suffix = s[0] == '-';
-		if (first)
-			first = false;
-		else {
-			if(!suffix)
-				result += ' ';
-		}
-		if (suffix)
-			result += s.substr(1);
-		else
-			result += s;
-	}
-	return pp.map_out(pp.process(pp.map_in(result)));
-}
-
-vector<string> enumerate(Grammar* grammar,TreeNode* node, bool right) {
-	vector<vector<string>> result(1);
-	vector<string> out;
-	enumerate(node, result, right);
-	for (auto& item : result) {
-		out.push_back(post_process(grammar, item));
-	}
-	return out;
-}
+//void enumerate(TreeNode* node, vector<vector<string>>& out, bool right) {
+//	// helper function
+//	vector<vector<string>> new_out;
+//	for (int i = 0; i < node->options.size(); ++i) {
+//		auto option = node->options[i];
+//		vector<vector<string>> temp;
+//		if (i == node->options.size() - 1)
+//			temp = move(out);
+//		else
+//			temp = out;
+//		auto& ref = right ? option->right : option->left;
+//		for (auto sub_node : ref) {
+//			if (!sub_node->nonterm)
+//				for (auto& item : temp) {
+//					item.push_back(*sub_node->name);
+//				}
+//			else
+//				enumerate(sub_node, temp, right);
+//		}
+//		copy(make_move_iterator(temp.begin()), make_move_iterator(temp.end()), back_inserter(new_out));
+//	}
+//	out = move(new_out);
+//}
+//
+//string post_process(Grammar* grammar,vector<string>& in) {
+//	static PostProcessor pp;
+//	string prev = "";
+//	vector<string> temp;
+//	string clipboard;
+//	temp.reserve(in.size());
+//	for (auto& item : in) {
+//		if (item == "+copy") {
+//			clipboard = item;
+//		}
+//		else if (item == "+paste") {
+//			temp.push_back(clipboard);
+//		}
+//		if (item[0] == '+') {
+//			auto it = grammar->suffixes.find(prev + item);
+//			if (it == grammar->suffixes.end()) {
+//				it = grammar->suffixes.find(item);
+//				if (it == grammar->suffixes.end())
+//					throw PostProcessError("Cannot find suffix default: " + item);
+//				temp.push_back(it->second);
+//			}
+//			else {
+//				temp.pop_back();
+//				temp.push_back(it->second);
+//			}
+//		}
+//		else
+//			temp.push_back(item);
+//		prev = item;
+//	}
+//	string result;
+//	bool first = true;
+//	for (auto& s : temp) {
+//		assert(s.size());
+//		if (s == "-")
+//			continue;
+//		bool suffix = s[0] == '-';
+//		if (first)
+//			first = false;
+//		else {
+//			if(!suffix)
+//				result += ' ';
+//		}
+//		if (suffix)
+//			result += s.substr(1);
+//		else
+//			result += s;
+//	}
+//	return pp.map_out(pp.process(pp.map_in(result)));
+//}
+//
+//vector<string> enumerate(Grammar* grammar,TreeNode* node, bool right) {
+//	vector<vector<string>> result(1);
+//	vector<string> out;
+//	enumerate(node, result, right);
+//	for (auto& item : result) {
+//		out.push_back(post_process(grammar, item));
+//	}
+//	return out;
+//}
 
 void print_tree(ostream& os, TreeNode* node, int level, int indent_size, bool extended, bool right) {
 	// helper for print_tree
@@ -346,14 +346,14 @@ bool appendix(Node& node, const string& item, Grammar* grammar) {
 			it = grammar->suffixes.find(item);
 			if (it == grammar->suffixes.end())
 				throw PostProcessError("Cannot find suffix default: " + item);
-			//if (it->second == "-")
-			//	return false;
+			if (it->second == "+del")
+				return false;
 			append(word, it->second);
 		}
 		else if (it->second != "-") {
 			word = it->second;
 		}
-		else
+		else // word+suff -> "-"
 			return false;
 	}
 	else if (item[0] == '-')
@@ -471,7 +471,7 @@ void convert(ostream& os, TreeNode* node, Grammar* grammar,EnumVec& enums) {
 	sort(enums.begin(), enums.end(), [](pair<string, int>& a, pair<string, int>& b) { return a.second < b.second; });
 }
 
-bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList> src, bool down) {
+bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList> src, bool down, FeatList* check_list) {
 	/* unification of "src" features into "dst" features, using filtering of "param", if unification fails returns nullptr
 	if param is None, src is directly unified into dst
 	otherwise param contains a pre - condition dict and a filter set,
@@ -522,7 +522,18 @@ bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList
 					dst_name = val.substr(1);
 					src_name = name;
 				}
+
 				auto sit = src->find(src_name);
+				//if (check_list) {
+				//	auto cit = check_list->find(dst_name);
+				//	if (cit != check_list->end()) {
+				//		bool found = sit != src->end();
+				//		if (cit->second == "?" && !found)
+				//			return false;
+				//		else if(cit->second == "!" && found)
+				//			return false;
+				//	}
+				//}
 				if (sit != src->end()) { // parameter exist in src
 					auto dit = dst->find(dst_name);
 					if (dit != dst->end()) { // same feat exist in dst too
@@ -571,6 +582,19 @@ bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList
 						(*dst)[name] = val;
 					}
 				}
+			}
+		}
+	}
+	if (check_list) {
+		for (auto& [name, val] : *check_list) {
+			auto it = dst->find(name);
+			if (it != dst->end()) {
+				if (val == "!")
+					return false;
+			}
+			else {
+				if (val == "?")
+					return false;
 			}
 		}
 	}

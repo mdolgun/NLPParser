@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "common.h"
 
+// !!! TODO: check_list
+
 void save(ostream& os, int val) {
 	os.write((const char*)&val, sizeof(val));
 }
@@ -20,13 +22,6 @@ void save(ostream& os, const string& s) {
 void load(istream& is, string& s) {
 	int size;
 	load(is, size);
-	/*
-	char* temp = new char[size+1];
-	is.read(temp, size);
-	temp[size] = '\0';
-	s = temp;
-	delete [] temp;
-	*/
 	s.resize(size);
 	is.read(&s[0], size);
 }
@@ -65,14 +60,14 @@ void Prod::save(ostream& os) {
 		symbol->save(os);
 	}
 }
-Prod::Prod(istream& is) {
+Prod::Prod(istream& is, SymbolTable* symbol_table) {
 	load(is, cost);
 	load(is, cut);
 	int size;
 	load(is, size);
 	reserve(size);
 	for (int i = 0; i<size; ++i) {
-		push_back(new Symbol(is));
+		push_back(new Symbol(is, symbol_table));
 	}
 }
 
@@ -136,8 +131,8 @@ Symbol::Symbol(istream& is,SymbolTable* symbol_table) {
 	load(is, name);
 	//load(is, id);
 	load(is, nonterminal);
-	if (symbol_table)
-		id = symbol_table->add(name, nonterminal);
+	if (symbol_table && nonterminal)
+		id = symbol_table->add(name, true);
 	load(is, idx);
 	fparam = load_fparam(is);
 }

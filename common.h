@@ -44,8 +44,6 @@ public:
 	void save(ostream& os);
 };
 
-//extern SymbolTable symbol_table;
-
 using dict = map<string, string>;
 
 struct FeatList : public dict {
@@ -143,7 +141,6 @@ inline ostream& operator<<(ostream& os, const Symbol& obj) {
 	return obj.print(os);
 }
 
-
 struct Prod : public vector<Symbol*> {
 	int cost = 0;
 	bool cut = false;
@@ -156,7 +153,7 @@ struct Prod : public vector<Symbol*> {
 		cost = other->cost;
 		cut = other->cut;
 	}
-	Prod(istream& is);
+	Prod(istream& is, SymbolTable* symbol_table = nullptr);
 	void save(ostream& os);
 	ostream& print(ostream& os) const;
 };
@@ -171,13 +168,14 @@ struct Rule {
 	Prod* left;
 	Prod* right;
 	FeatPtr feat;
+	FeatList* check_list = nullptr;
 	Rule() {
 		head = nullptr;
 		left = new Prod;
 		right = new Prod;
 		feat = FeatPtr(new FeatList);
 	}
-	Rule(Symbol* _head, Prod* _left, Prod* _right, FeatPtr& _feat) : head(_head),left(_left),right(_right),feat(_feat) { }
+	Rule(Symbol* _head, Prod* _left, Prod* _right, FeatPtr& _feat, FeatList* _check_list) : head(_head),left(_left),right(_right),feat(_feat), check_list(_check_list) { }
 	Rule(istream& is, SymbolTable* symbol_table);
 	void save(ostream& os);
 	ostream& print(ostream& os) const;
@@ -259,7 +257,7 @@ vector<string> enumerate(Grammar* grammar, TreeNode* node, bool right = true);
 void print_tree(ostream& os, TreeNode* tree, bool indented, bool extended, bool right);
 void convert(ostream& os, TreeNode* node, Grammar* grammar, EnumVec& enums);
 TreeNode* unify_tree(TreeNode* parent_node, bool shared=false);
-bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList> src, bool down);
+bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList> src, bool down, FeatList* check_list=nullptr);
 void dot_print(ostream& os, TreeNode* node, bool left = true, bool right = false);
 void dot_print(string fname, TreeNode* node, bool left = true, bool right = false);
 void search_trie_prefix(TrieNode* node, const char* str, vector<pair<int, Rule*>>& result);

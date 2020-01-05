@@ -488,7 +488,7 @@ TreeNode* Parser::make_trans_tree(int id,FeatParam* fparam,FeatPtr parent_feat) 
 		Rule* rule = get_rule(ruleno);
 		try {
 			FeatPtr feat_list = rule->feat;
-			if( !unify_feat(feat_list, fparam, parent_feat, true) )
+			if( !unify_feat(feat_list, fparam, parent_feat, true, rule->check_list) )
 				throw UnifyError("UnifyError");
 			OptionNode* option = new OptionNode(rule, feat_list);
 			option->cost = rule->right->cost;
@@ -501,7 +501,6 @@ TreeNode* Parser::make_trans_tree(int id,FeatParam* fparam,FeatPtr parent_feat) 
 				}
 				else { // terminal
 					//assert(!symbol->nonterminal); // cannot be a non-referenced nonterminal
-					//TreeNode* sub_node = new TreeNode(&symbol->name, false);
 					TreeNode* sub_node = new TreeNode(&symbol->name, symbol->nonterminal);
 					option->right.push_back(sub_node);
 				}

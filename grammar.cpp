@@ -256,48 +256,58 @@ bool GrammarParser::get_char_list(string& out, const char* char_list, bool ensur
 	return false;
 }
 
-void GrammarParser::parse_feat(dict* fdict,bool param) {
-	string name,value;
+void GrammarParser::parse_feat(FeatList* feat_list, FeatList*& check_list) {
+	string name, value;
+	if (get_char_list(value, "+-?!", false)) {
+		get_feat(name, true, false);
+		if (value == "?" || value == "!") {
+			if (!check_list)
+				check_list = new FeatList;
+			(*check_list)[name] = value;
+			return;
+		}
+	}
+	else {
+		get_feat(name);
+		get_token("=");
+		get_feat(value);
+	}
+	(*feat_list)[name] = value;
+}
+
+void GrammarParser::parse_fparam(FeatParam* fparam_list) {
+	string name, value;
 	if (get_char_list(value, "+-", false)) {
 		get_feat(name, true, false);
 	}
 	else {
 		get_feat(name);
-		if (param) {
-			if (get_token("=",false))
-				get_feat(value);
-		}
-		else {
-			get_token("=");
+		if (get_token("=", false))
 			get_feat(value);
-		}
-			
 	}
-	(*fdict)[name] = value;
+	(*fparam_list)[name] = value;
 }
 
 FeatParam* GrammarParser::parse_fparam_list() {
 	if (! get_token("(", false, false))
 		return nullptr;
-	FeatParam* fparam = new FeatParam();
+	FeatParam* fparam_list = new FeatParam();
 	if (get_token(")", false))
-		return fparam;
-	parse_feat(fparam,true);
+		return fparam_list;
+	parse_fparam(fparam_list);
 	while (get_token(",", false)) {
-		parse_feat(fparam, true);
+		parse_fparam(fparam_list);
 	}
 	get_token(")");
-	return fparam;
+	return fparam_list;
 }
 
-FeatPtr GrammarParser::parse_feat_list() {
-	FeatList* flist = new FeatList();
-	parse_feat(flist,false);
+void  GrammarParser::parse_feat_list(FeatPtr& feat_list, FeatList*& check_list) {
+	parse_feat(feat_list.get(), check_list);
 	while (get_token(",", false)) {
-		parse_feat(flist, false);
+		parse_feat(feat_list.get(), check_list);
 	}
 	get_token("]");
-	return FeatPtr(flist);
 }
 
 void GrammarParser::parse_prod(vector<PreProd>& prods,const string& macro_name) {
@@ -368,7 +378,7 @@ void resolve_reference(Prod* left, Prod* right) {
 		}
 	}
 }
-void GrammarParser::create_rule(PreSymbol* head, PreProd* left, PreProd* right, FeatPtr& feat,int macro_idx) {
+void GrammarParser::create_rule(PreSymbol* head, PreProd* left, PreProd* right, FeatPtr& feat_list, FeatList* check_list, int macro_idx) {
 	SymbolTable* symbol_table = &grammar->symbol_table;
 
 	auto p = left->begin(); // dummy initial value for p
@@ -384,13 +394,13 @@ void GrammarParser::create_rule(PreSymbol* head, PreProd* left, PreProd* right, 
 				flag = None;
 	}
 	if (flag == None) { // don't add to dict
-		Rule* rule = new Rule(new Symbol(head, symbol_table, macro_idx), new Prod(left, symbol_table, macro_idx), new Prod(right, symbol_table, macro_idx), feat);
+		Rule* rule = new Rule(new Symbol(head, symbol_table, macro_idx), new Prod(left, symbol_table, macro_idx), new Prod(right, symbol_table, macro_idx), feat_list, check_list);
 		resolve_reference(rule->left, rule->right);
 		rule->id = grammar->rules.size();
 		grammar->rules.emplace_back(rule); // unique_ptr is created for the rule
 	}
 	else if (flag == TermOnly) { // add whole rule LHS to the dict
-		Rule* rule = new Rule(new Symbol(head, symbol_table, macro_idx), new Prod(left, nullptr, macro_idx), new Prod(right, nullptr), feat);
+		Rule* rule = new Rule(new Symbol(head, symbol_table, macro_idx), new Prod(left, symbol_table, macro_idx), new Prod(right, symbol_table), feat_list, check_list);
 		add_trie(grammar->root, rule->sentence(), rule);
 	}
 	else { // normalize the rule so that it starts with a dummy NonTerminal which contains initial terminals
@@ -407,7 +417,7 @@ void GrammarParser::create_rule(PreSymbol* head, PreProd* left, PreProd* right, 
 		int symbol;
 		
 		if (q == entries.end()) { // if no equivalent rule is found, then create the parent rule (eg V -> V$0 Obj )
-			Rule* rule = new Rule(new Symbol(head, symbol_table, macro_idx), new Prod(), new Prod(right, symbol_table), feat);
+			Rule* rule = new Rule(new Symbol(head, symbol_table, macro_idx), new Prod(), new Prod(right, symbol_table), feat_list, check_list);
 			name = head->name + '$' + to_string(entries.size());
 			symbol = symbol_table->add(name, true);
 			rule->left->push_back(new Symbol(name, true, symbol));
@@ -463,11 +473,11 @@ void GrammarParser::parse_rule() {
 	else
 		rlist.emplace_back();
 
-	FeatPtr feat;
-	if (get_token("[", false))
-		feat = parse_feat_list();
-	else
-		feat = FeatPtr(new FeatList()); // or use a singleton for empty feature list
+	FeatPtr feat_list(new FeatList());
+	FeatList* check_list = nullptr;
+	if (get_token("[", false)) {
+		parse_feat_list(feat_list, check_list);
+	}
 
 	get_eol();
 	
@@ -475,12 +485,12 @@ void GrammarParser::parse_rule() {
 		for (auto& right : rlist) {
 			if (macro_name.empty()) {
 				//create_rule(new Symbol(&head), new Prod(&left), new Prod(&right), feat);
-				create_rule(&head, &left, &right, feat);
+				create_rule(&head, &left, &right, feat_list, check_list);
 			}
 			else {
 				for (int idx = 0; idx < head.macro_values->size(); ++idx) {
 					//create_rule(new Symbol(&head,idx), new Prod(&left,idx), new Prod(&right), feat);
-					create_rule(&head, &left, &right, feat, idx);
+					create_rule(&head, &left, &right, feat_list, check_list, idx);
 				}
 			}
 		}
