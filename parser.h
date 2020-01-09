@@ -21,7 +21,7 @@ struct Parser : public Grammar{
 	RuleDict ruledict;
 	vector<StateSet> reduce, ereduce;
 	vector<unordered_map<int, int>> dfa;
-	vector<string>* p_input;
+	vector<string> input;
 	unordered_map<Edge, vector<EdgeInfo>> edges;
 	int n_states, n_symbols;
 	Parser() {
@@ -31,6 +31,12 @@ struct Parser : public Grammar{
 	Rule* get_rule(int id) {
 		// returns the ordinary (non-owned) pointer for the given Symbol id
 		return rules[id].get();
+	}
+	int get_next_state(int state, int symbol) {
+		auto it = dfa[state].find(symbol);
+		if (it == dfa[state].end())
+			return -1;
+		return it->second;
 	}
 	void persist(ofstream& os);
 	void load_grammar(const char* fname);
@@ -43,6 +49,7 @@ struct Parser : public Grammar{
 	void compile();
 	void print_dfa(ostream& os, bool csv = false);
 	void print_dfa_dot(ostream& os);
+	void match_and_reduce(unordered_map<BackParam, StateSet>& nodes, unordered_set<int>& active, const char* in, vector<Edge>& edge_seq, Prod* body, int rulepos, int pos, int state);
 	void parse(string input);
 	void print_parse(ostream& os, Edge& parent_edge, int level = 0, int indent_size = 0, bool extended = false);
 	void print_parse_dot(ostream& os, unordered_set<Edge>&completed, Edge& parent_edge);

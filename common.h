@@ -44,14 +44,12 @@ public:
 	void save(ostream& os);
 };
 
-using dict = map<string, string>;
-
-struct FeatList : public dict {
+struct FeatList : public map<string, string> {
 	static int count;
 	FeatList() {
 		count++;
 	}
-	FeatList(const FeatList& other) : dict(other) {
+	FeatList(const FeatList& other) : map<string, string>(other) {
 		count++;
 	}
 	~FeatList() {
@@ -68,7 +66,7 @@ using FeatPtr = shared_ptr<FeatList>;
 using FeatRef = shared_ptr<FeatList>&;
 
 
-struct FeatParam : public dict {
+struct FeatParam : public map<string, string> {
 	FeatParam() = default;
 	FeatParam(istream& is,int size);
 	void save(ostream& os);
@@ -179,7 +177,9 @@ struct Rule {
 	Rule(istream& is, SymbolTable* symbol_table);
 	void save(ostream& os);
 	ostream& print(ostream& os) const;
-	string sentence() const;
+	string terminal_prefix() const;
+	string get_template() const;
+	void resolve_references();
 };
 
 using RulePtr = unique_ptr<Rule>;

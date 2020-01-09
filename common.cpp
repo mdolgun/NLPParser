@@ -64,15 +64,52 @@ ostream& Rule::print(ostream& os) const {
 	return os << *head << " -> " << *left << " : " << *right << " " << *feat;
 }
 
-string Rule::sentence() const {
-	// convert the left side (of terminals) to a sentence e.g. NP -> united states => "united states"
+string Rule::terminal_prefix() const {
+	// converts initial terminals of the left side to a string e.g. NP -> turn on Obj => "turn on"
 	string s;
 	for (auto symbol : *left) {
+		if (symbol->nonterminal)
+			break;
 		if (!s.empty())
 			s.push_back(' ');
 		s.append(symbol->name);
 	}
 	return s;
+}
+
+string Rule::get_template() const {
+	// converts a rule to a template, where all consecutive terminals are replaced by * e.g: V -> put Obj down as Obj  => "V -> * Obj * Obj"
+	
+	string s = head->name;
+	s += " ->";
+	auto it = left->cbegin();
+	auto end = left->cend();
+	while (it != end) {
+		auto start = it;
+		for (; it != end; ++it) {
+			if ((*it)->nonterminal)
+				break;
+		}
+		if (it != start)
+			s += " *";
+		if (it == end)
+			break;
+		s += " ";
+		s.insert(s.size(), (*it)->name, 0, (*it)->name.find('-'));
+		++it;
+	}
+	return s;
+}
+void Rule::resolve_references() {
+	// given LHS and RHS of a rule, for nonterminals on both sides, RHS symbol is added an reference index for the LHS position of the symbol
+	for (auto rsymbol : *right) {
+		if (!rsymbol->nonterminal)
+			continue;
+		auto p = find_if(left->begin(), left->end(), [&rsymbol](auto lsymbol) {return lsymbol->name == rsymbol->name; }); // find the first symbol on the left, where it matches the right symbol
+		if (p != left->end()) {
+			rsymbol->idx = p - left->begin();
+		}
+	}
 }
 
 void print_partial_rule(ostream& os, Rule* rule, int start_pos, int end_pos) {

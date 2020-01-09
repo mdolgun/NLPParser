@@ -1,6 +1,13 @@
 #include "stdafx.h"
 #include "parser.h"
 
+ostream& operator<<(ostream& os, const State& state) {
+	return os << "(" << state.first << "," << state.second << ")";
+}
+ostream& operator<<(ostream& os, StateSet& stateset) {
+	return join(os, stateset, " ");
+}
+
 void Parser::print_ruledict(ostream& os) {
 	for (int i = 0; i < ruledict.size(); i++)
 		if (ruledict[i].size()) {
@@ -20,20 +27,12 @@ void Parser::load_grammar(const char* fname) {
 		cout << "Rules:" << nl;
 		print_rules(cout);
 	}
-
 }
 
 void Parser::print_rules(ostream& os) {
 	for (int i = 0; i < rules.size(); i++) {
 		os << i << ':' << *rules[i] << nl;
 	}
-}
-
-ostream& operator<<(ostream& os, const State& state) {
-	return os << "(" << state.first << "," << state.second << ")";
-}
-ostream& operator<<(ostream& os, StateSet& stateset) {
-	return join(os, stateset, " ");
 }
 
 //ostream& operator<< (ostream& os, const Edge& edge) {
@@ -106,132 +105,6 @@ void Parser::print_dfa(ostream& os,bool csv) {
 	}
 }
 
-void Parser::closure(StateSet& stateset) {
-	// modifies parameter to add e-closure to existing set of states
-	vector<State> todo(stateset.cbegin(), stateset.cend());
-	for (int i = 0; i < todo.size(); i++) {
-		auto[ruleno, rulepos] = todo[i];
-		Prod* prod = rules[ruleno]->left;
-		if (rulepos >= prod->size())
-			continue;
-		Symbol* symbol = prod->at(rulepos);
-		if (!symbol->nonterminal)
-			continue;
-		
-		for (int nextno : ruledict[symbol->id]) {
-			State nextstate(nextno, 0);
-			bool inserted = stateset.insert(nextstate).second;
-			if (inserted) {
-				todo.push_back(nextstate);
-			}
-		}
-	}
-}
-void Parser::compile() {
-	/*
-		compile rule list "rules" to a DFA
-		produces dfa, reduce and ereduce tables(dictionaries) from rules
-	*/
-	n_symbols = symbol_table.size();
-	ruledict.resize(n_symbols); // ruledict stores the set of rules a nonterminal can derive (i.e. is head)
-	for (int ruleno = 0; ruleno < rules.size(); ruleno++) {
-		ruledict[rules[ruleno]->head->id].push_back(ruleno);
-	}
-	if (debug >= 2) {
-		cout << "RuleDict:\n";
-		print_ruledict(cout);
-	}
-
-	vector<bool> nullable(n_symbols); // nullable stores if a nonterminal can be nullable (i.e. can derive to empty string) for any rule
-	bool modified = true;
-	while (modified)
-	{
-		modified = false;
-		for (int ruleno = 0; ruleno < rules.size(); ruleno++) {
-			Prod* prod = rules[ruleno]->left;
-			int head = rules[ruleno]->head->id;
-			if (nullable[head])
-				continue;
-			if (all_of(prod->begin(), prod->end(), [&nullable](Symbol* symbol)->bool {return nullable[symbol->id]; })) {
-				nullable[head] = true;
-				modified = true;
-			}
-		}
-	}
-	if (debug >= 2) {
-		cout << "Nullable: ";
-		for (int i = 0; i < n_symbols; i++) {
-			if (nullable[i]) {
-				cout << symbol_table.get(i) << ",";
-			}
-		}
-		cout << '\n';
-	}
-
-	StateSetDict statedict; //maps set of nfa states to a single dfa state
-	StateSet stateset;
-	State initial(0, 0);
-	stateset.insert(initial);
-	closure(stateset);
-
-	statedict[stateset] = 0; // maps nfa_state->dfa_state
-	vector<int> todo = { 0 };
-	vector<StateSet> nfa_states = { stateset };
-	n_states = 1;
-
-	for (int i = 0; i < todo.size(); i++) {
-		unordered_map<int, StateSet> nfa_map; // maps symbol->next_nfa_state for the current state
-		unordered_map<int, int> dfa_map;      // maps symbol->next_dfa_state for the current state
-		for (auto[ruleno, rulepos] : nfa_states[i]) {
-			try {
-				auto symbol = rules[ruleno]->left->at(rulepos)->id; // get next symbol id after dot (i.e. A->x.By)
-				nfa_map[symbol].emplace(ruleno, rulepos + 1);
-			}
-			catch (out_of_range&) {
-			}
-		}
-		for (auto&[symbolid, nextstateset] : nfa_map) {
-			closure(nextstateset);
-			auto[it, inserted] = statedict.insert(make_pair(nextstateset, n_states));
-			if (inserted) {
-				n_states++;
-				nfa_states.push_back(nextstateset);
-				todo.push_back(n_states);
-			}
-			dfa_map[symbolid] = it->second; // next state
-		}
-		dfa.push_back(move(dfa_map));
-	}
-	assert(n_states == nfa_states.size());
-	assert(n_states == statedict.size());
-
-	if (debug >= 2)
-		for (int i = 0; i < nfa_states.size(); i++) {
-			cout << i << ": ";
-			print_stateset(cout, nfa_states[i]);
-			cout << '\n';
-		}
-	reduce.resize(n_states);
-	ereduce.resize(n_states);
-	for (int i = 0; i < n_states; i++) {
-		for (auto& rule_state : nfa_states[i]) {
-			auto[ruleno, rulepos] = rule_state;
-			if (ruleno == 0) // we don't reduce S'->S
-				continue;
-			Prod* body = rules[ruleno]->left;
-			if (all_of(body->cbegin() + rulepos, body->cend(), [nullable](Symbol* symbol)->bool {return nullable[symbol->id]; })) {
-				if (rulepos == 0) // check if an empty-reducable rule
-					ereduce[i].insert(rule_state); // insert (ruleno,0) as e-reducable for state=i
-				else
-					reduce[i].insert(rule_state); // insert (ruleno,rulepos) as reducable for state=i
-			}
-		}
-	}
-	if (debug >= 2) {
-		cout << "DFA:\n";
-		print_dfa(cout);
-	}
-}
 
 void Parser::print_parse_dot(ostream& os, unordered_set<Edge>&visited, Edge& edge) {
 	if (visited.count(edge))
@@ -305,7 +178,7 @@ void Parser::print_parse(ostream& os, Edge& top_edge, int level,int indent_size,
 				first = false;
 			else
 				os << ' ';
-			os << (*p_input)[i];
+			os << input[i];
 		}
 		return;
 	}
@@ -408,26 +281,34 @@ void Parser::print_graph(ostream& os,int inlen, vector<unordered_set<int>>& act_
 }
 
 TreeNode* Parser::make_tree_shared(unordered_map<tuple<int,int,int>,TreeNode*>&visited, Edge& edge) {
-	int parent_symbol = get<2>(edge);
-	tuple<int, int, int> key{ get<0>(edge), parent_symbol, get<3>(edge) };
+	auto[start_pos, start_state, parent_symbol, end_pos, end_state] = edge;
+
+	tuple<int, int, int> key{ start_pos, parent_symbol, end_pos };
 	auto it = visited.find(key);
 	if (it != visited.end()) // this node is already visited
 		return it->second; // return the associated node
-	
-	TreeNode* node = new TreeNode(&symbol_table.get(parent_symbol), symbol_table.nonterminal(parent_symbol));
+
+	TreeNode* node;
+	if (parent_symbol == -1) { // a dictionary-terminal, there is no associated "id" with it
+		node = new TreeNode(&input[start_pos], false);
+	}
+	else {
+		node = new TreeNode(&symbol_table.get(parent_symbol), symbol_table.nonterminal(parent_symbol));
+	}
+	node->start_pos = start_pos;
+	node->end_pos = end_pos;
 	visited[key] = node;
-	node->start_pos = get<0>(edge);
-	node->end_pos = get<3>(edge);
-	if (!node->nonterm)
+	if (!node->nonterm) // if terminal no subtree exists under it
 		return node;
+
 	for (auto& [rule, edge_seq] : edges[edge]) {
 		OptionNode* option = new OptionNode(rule, rule->feat);
-		if (rule->id == -1) { // this is a dictionary-rule (i.e. consists of only non-terminals), then create a new terminal Node for each word
+		/*if (rule->id == -1) { // this is a dictionary-rule (i.e. consists of only non-terminals), then create a new terminal Node for each word
 			for (auto& symbol : *rule->left) {
 				option->left.push_back(new TreeNode(&symbol->name, false));
 			}
 		}
-		else { // this is a grammar-rule, make sub-trees recursively
+		else */ { // this is a grammar-rule, make sub-trees recursively
 			for (auto sub_edge : edge_seq) {
 				option->left.push_back(make_tree_shared(visited, sub_edge));
 			}
@@ -439,20 +320,27 @@ TreeNode* Parser::make_tree_shared(unordered_map<tuple<int,int,int>,TreeNode*>&v
 }
 TreeNode* Parser::make_tree(Edge& edge) {
 	// makes a sub-tree from given edge<start_pos,start_state,symbol,end_pos,end_state>
-	int parent_symbol = get<2>(edge);
-	TreeNode* node = new TreeNode(&symbol_table.get(parent_symbol), symbol_table.nonterminal(parent_symbol));
-	node->start_pos = get<0>(edge);
-	node->end_pos = get<3>(edge);
-	if (!node->nonterm) // if nonterminal no subtree exists under it
+	auto [start_pos, start_state, parent_symbol, end_pos, end_state] = edge;
+	TreeNode* node;
+	if (parent_symbol == -1) { // a dictionary-terminal
+		node = new TreeNode(&input[start_pos], false);
+	}
+	else {
+		node = new TreeNode(&symbol_table.get(parent_symbol), symbol_table.nonterminal(parent_symbol));
+	}
+	node->start_pos = start_pos;
+	node->end_pos = end_pos;
+
+	if (!node->nonterm) // if terminal no subtree exists under it
 		return node;
 	for (auto&[rule, edge_seq] : edges[edge]) {
 		OptionNode* option = new OptionNode(rule, rule->feat);
-		if (rule->id == -1) { // this is a dictionary-rule (i.e. consists of only non-terminals), then create a new terminal Node for each word
+		/*if (rule->id == -1) { // this is a dictionary-rule (i.e. consists of only non-terminals), then create a new terminal Node for each word
 			for (auto& symbol : *rule->left) {
 				option->left.push_back(new TreeNode(&symbol->name, false));
 			}
 		}
-		else { // this is a grammar-rule, make sub-trees recursively
+		else */ { // this is a grammar-rule, make sub-trees recursively
 			for (auto sub_edge : edge_seq) {
 				option->left.push_back(make_tree(sub_edge));
 			}
@@ -661,22 +549,206 @@ void split_sentence(string& input, vector<string>& words, vector<int>& word_pos)
 	}
 }
 
+void Parser::closure(StateSet& stateset) {
+	// modifies parameter to add e-closure to existing set of states
+	vector<State> todo(stateset.cbegin(), stateset.cend());
+	for (int i = 0; i < todo.size(); i++) {
+		auto[ruleno, rulepos] = todo[i];
+		Prod* prod = rules[ruleno]->left;
+		if (rulepos >= prod->size())
+			continue;
+		Symbol* symbol = prod->at(rulepos);
+		if (!symbol->nonterminal)
+			continue;
+
+		for (int nextno : ruledict[symbol->id]) {
+			State nextstate(nextno, 0);
+			bool inserted = stateset.insert(nextstate).second;
+			if (inserted) {
+				todo.push_back(nextstate);
+			}
+		}
+	}
+}
+
+void Parser::compile() {
+	/*
+	compile rule list "rules" to a DFA
+	produces dfa, reduce and ereduce tables(dictionaries) from rules
+	*/
+	n_symbols = symbol_table.size();
+	ruledict.resize(n_symbols); // ruledict stores the set of rules a nonterminal can derive (i.e. is head)
+	for (int ruleno = 0; ruleno < rules.size(); ruleno++) {
+		ruledict[rules[ruleno]->head->id].push_back(ruleno);
+	}
+	if (debug >= 2) {
+		cout << "RuleDict:\n";
+		print_ruledict(cout);
+	}
+
+	vector<bool> nullable(n_symbols); // nullable stores if a nonterminal can be nullable (i.e. can derive to empty string) for any rule
+
+	//int tail_id = symbol_table.map("*tail");
+	//if (tail_id != -1)
+	//	nullable[tail_id] = true;
+
+	bool modified = true;
+	while (modified)
+	{
+		modified = false;
+		for (int ruleno = 0; ruleno < rules.size(); ruleno++) {
+			Prod* prod = rules[ruleno]->left;
+			int head = rules[ruleno]->head->id;
+			if (nullable[head])
+				continue;
+			if (all_of(prod->begin(), prod->end(), [&nullable](Symbol* symbol)->bool {return nullable[symbol->id]; })) {
+				nullable[head] = true;
+				modified = true;
+			}
+		}
+	}
+	if (debug >= 2) {
+		cout << "Nullable: ";
+		for (int i = 0; i < n_symbols; i++) {
+			if (nullable[i]) {
+				cout << symbol_table.get(i) << ",";
+			}
+		}
+		cout << '\n';
+	}
+
+	StateSetDict statedict; //maps set of nfa states to a single dfa state
+	StateSet stateset;
+	State initial(0, 0);
+	stateset.insert(initial);
+	closure(stateset);
+
+	statedict[stateset] = 0; // maps nfa_state->dfa_state
+	vector<int> todo = { 0 };
+	vector<StateSet> nfa_states = { stateset };
+	n_states = 1;
+
+	for (int i = 0; i < todo.size(); i++) {
+		unordered_map<int, StateSet> nfa_map; // maps symbol->next_nfa_state for the current state
+		unordered_map<int, int> dfa_map;      // maps symbol->next_dfa_state for the current state
+		for (auto[ruleno, rulepos] : nfa_states[i]) {
+			try {
+				auto symbol = rules[ruleno]->left->at(rulepos)->id; // get next symbol id after dot (i.e. A->x.By)
+				nfa_map[symbol].emplace(ruleno, rulepos + 1);
+			}
+			catch (out_of_range&) {
+			}
+		}
+		for (auto&[symbolid, nextstateset] : nfa_map) {
+			closure(nextstateset);
+			auto[it, inserted] = statedict.insert(make_pair(nextstateset, n_states));
+			if (inserted) {
+				n_states++;
+				nfa_states.push_back(nextstateset);
+				todo.push_back(n_states);
+			}
+			dfa_map[symbolid] = it->second; // next state
+		}
+		dfa.push_back(move(dfa_map));
+	}
+	assert(n_states == nfa_states.size());
+	assert(n_states == statedict.size());
+
+	if (debug >= 2)
+		for (int i = 0; i < nfa_states.size(); i++) {
+			cout << i << ": ";
+			print_stateset(cout, nfa_states[i]);
+			cout << '\n';
+		}
+	reduce.resize(n_states);
+	ereduce.resize(n_states);
+	for (int i = 0; i < n_states; i++) {
+		for (auto& rule_state : nfa_states[i]) {
+			auto[ruleno, rulepos] = rule_state;
+			if (ruleno == 0) // we don't reduce S'->S
+				continue;
+			Prod* body = rules[ruleno]->left;
+			if (all_of(body->cbegin() + rulepos, body->cend(), [nullable](Symbol* symbol)->bool {return nullable[symbol->id]; })) {
+				if (rulepos == 0) // check if an empty-reducable rule
+					ereduce[i].insert(rule_state); // insert (ruleno,0) as e-reducable for state=i
+				else
+					reduce[i].insert(rule_state); // insert (ruleno,rulepos) as reducable for state=i
+			}
+		}
+	}
+	if (debug >= 2) {
+		cout << "DFA:\n";
+		print_dfa(cout);
+	}
+}
+
+
+void Parser::match_and_reduce(unordered_map<BackParam, StateSet>& nodes, unordered_set<int>& active, const char* in, vector<Edge>& edge_seq, Prod* body, int rulepos, int pos, int state) {
+	// !!!INCOMPLETE!!!
+	int  symbol = body->at(rulepos)->id;
+	for (auto[prev_pos, prev_state] : nodes[{pos, state, symbol}]) {
+		if (rulepos == 0) {
+			for (auto&[rule, sub_edge_seq] : edges[{prev_pos, prev_state, symbol, pos, state}]) {
+				auto it = rule->feat->find("tail");
+				if (it == rule->feat->end()) {
+					edge_seq.emplace_back(prev_pos, prev_state, symbol, pos, state);
+				}
+				else if (it->second.compare(0, it->second.size(), in) == 0) {
+					edge_seq.emplace_back(prev_pos, prev_state, symbol, pos, state);
+				}
+				else
+					continue;
+				int head;
+				int next_state = dfa[prev_state].at(head);
+				if (debug >= 2) {
+					cout << "StateTrans:" << prev_state << "," << symbol_table.get(head) << "->" << next_state << nl;
+				}
+				active.insert(next_state);
+				nodes[{pos, next_state, head}].emplace(prev_pos, prev_state);
+				Edge new_edge(prev_pos, prev_state, head, pos, next_state);
+				if (edges.count(new_edge) == 0) {
+					//edge_list.push_back(new_edge);
+					if (debug >= 3)
+						cout << "NewEdgeCreated\n";
+				}
+				reverse(edge_seq.begin(), edge_seq.end());
+				edges[new_edge].push_back({ rule, edge_seq });
+			}
+		}
+		else {
+			auto size = edge_seq.size();
+			edge_seq.emplace_back(prev_pos, prev_state, symbol, pos, state);
+			match_and_reduce(nodes, active, in, edge_seq, body, rulepos - 1, prev_pos, prev_state);
+			edge_seq.resize(size); // truncate the sequence
+		}
+	}
+}
+
+int get_word_count(string& s) {
+	// return number of words in a string, where words are seperated by single spaces
+	if (s.empty())
+		return 0;
+	return count(s.begin(), s.end(), ' ') + 1;
+}
+
 void Parser::parse(string input_str) {
 	// parses input string using current grammar, throwing ParseError if parsing fails, the parse tree can be later retrieved from "edges"
 	static regex input_re("'(?=[^t])");
-	input_str = regex_replace(input_str, input_re, " '");
+	input_str = regex_replace(input_str, input_re, " '"); // insert space before all "'" except followed by "t"
 
-	vector<string> input;
+	input.clear();
+	edges.clear();
+
 	vector<int> input_pos;
 	split_sentence(input_str, input, input_pos);
-	
-	p_input = &input;
-	edges.clear();
+
+	int tail_id = symbol_table.map("*");
 
 	int inlen = input.size();
 	unordered_map<BackParam, StateSet> nodes; // maps(pos, state, symbol) to set of(oldpos, oldstate) (i.e adds an arc from(pos, state) to(oldpos, oldstate) labeled with symbol)
 	// <startpos,startstate,symbol,endpos,endstate>
 	//unordered_map<Edge, vector<vector<Edge>>> edges; // maps an edge to sub - edges of a production e.g. (p0, s0, S, p2, s2') -> [ (p0,s0,NP,p1,s1), (p1,s1,VP,p2,s2) ] where s0,S->s2'
+	unordered_map<pair<int,int>, vector<tuple<int,int,int,Rule*,vector<Edge>>>> expected; // <end_pos,nt> -> <start_pos,start_state,end_state,Rule*,EdgeSeq>*
 	int start_symbol = symbol_table.map("S"); // start_symbol == 1
 	int final_state = dfa[0].at(start_symbol); 
 	top_edge = Edge(0, 0, start_symbol, inlen, final_state);
@@ -710,13 +782,72 @@ void Parser::parse(string input_str) {
 		}
 		for (int edge_idx = 0; edge_idx < edge_list.size(); edge_idx++) { // for each active edge for current position
 			auto edge = edge_list[edge_idx];
-			if (debug >= 2)
-				cout << "Checking edge for reduction:" << edge << '\n';
+			if (debug >= 2) {
+				cout << "Checking edge for reduction:"; print_edge(cout, edge); cout << nl;
+			}
+				
 			auto [start_pos, start_state, edge_symbol, end_pos, end_state] = edge;
+			assert(pos == end_pos);
+
+			for (auto[start_pos, start_state, end_state, rule, edge_seq] : expected[{start_pos, edge_symbol}]) {
+				edge_seq.push_back(edge);
+				int head = rule->head->id;
+				int rulepos = edge_seq.size();
+				end_state = get_next_state(end_state, edge_symbol);
+				assert(end_state != -1);
+				int tail_pos = end_pos;
+
+				for (; rulepos < rule->left->size(); ++rulepos, ++tail_pos) {
+					Symbol* symbol = rule->left->at(rulepos);
+					if (symbol->nonterminal)
+						break;
+					if (tail_pos >= inlen) // tail exceeds input length
+						goto mismatch;
+					if (input[tail_pos] != symbol->name) // tail mismatch
+						goto mismatch;
+					edge_seq.emplace_back(tail_pos, -1, -1, tail_pos + 1, -1);
+				}
+
+				if (tail_pos != end_pos) { // there are matched tail terminals
+					end_state = get_next_state(end_state, tail_id);
+					if (end_state == -1)
+						continue;
+				}
+				if (rulepos != rule->left->size()) {
+					Symbol* symbol = rule->left->at(rulepos);
+					if (debug >= 2) {
+						cout << "Expected partial match: (" << tail_pos << "," << symbol->name << ") : " << edge_seq << nl;
+					}
+					expected[{tail_pos, symbol->id}].emplace_back(start_pos, start_state, end_state, rule, move(edge_seq));
+					if (debug >= 2) {
+						cout << "Inserting * state transition to pos " << tail_pos << " : " << end_state;
+					}
+					act_states[tail_pos].insert(end_state);
+				}
+				else {
+					end_state = get_next_state(start_state, head);
+					assert(end_state != -1);
+					active.insert(end_state);
+					nodes[{tail_pos, end_state, head}].emplace(start_pos, start_state);
+					Edge new_edge(start_pos, start_state, head, tail_pos, end_state);
+					if (tail_pos == pos) {
+						if (edges.count(new_edge) == 0) {
+							edge_list.push_back(new_edge);
+						}
+					}
+					else {
+						act_edges[tail_pos].insert(new_edge);
+					}
+					edges[new_edge].emplace_back(rule, move(edge_seq));
+				}
+				mismatch:;
+			}
+
 			for (auto [ruleno, rulepos] : reduce[end_state]) {
 				auto rule = get_rule(ruleno);
 				auto head = rule->head->id;
 				auto body = rule->left;
+
 				if (debug >= 2) {
 					cout << "Reducing:"; print_state(cout, ruleno, rulepos); cout << '\n';
 				}
@@ -776,7 +907,8 @@ void Parser::parse(string input_str) {
 							cout << "NewEdgeCreated\n";
 					}
 					reverse(edge_seq.begin(), edge_seq.end());
-					edges[new_edge].push_back({ rule, edge_seq});
+					edges[new_edge].emplace_back(rule, edge_seq);
+
 				}
 			}
 		}
@@ -824,7 +956,7 @@ void Parser::parse(string input_str) {
 		}
 		else {
 			if (!active.size()) { // there is no active state at current position
-				if (debug >= 1)
+				if (debug >= 2)
 					cout << "No Active State Left at position " << pos << nl;
 				// check next positions for active states (can only happen if a multi-word dictionary search result is found, e.g "et al" is valid but "et" is not valid)
 			}
@@ -839,9 +971,8 @@ void Parser::parse(string input_str) {
 					}
 				}
 				for (auto state : active) {
-					auto it = dfa[state].find(token); // check if there is a state transition for current word
-					if (it != dfa[state].end()) { // current token results in a next state
-						int next_state = it->second;
+					int next_state = get_next_state(state, token); 
+					if (next_state != -1) { // check if there is a state transition for current word
 						nodes[{pos + 1, next_state, token}].insert({ pos,state });
 						act_edges[pos + 1].insert({ pos, state, token, pos + 1, next_state });
 						act_states[pos + 1].insert(next_state);
@@ -849,14 +980,29 @@ void Parser::parse(string input_str) {
 
 					for (auto[len, rule] : dict_search) { // iterate on dictionary search results
 						int head = rule->head->id;
-						auto it = dfa[state].find(head);
-						if (it != dfa[state].end()) { // current token results in a next state
-							int next_state = it->second;
+						int next_state = get_next_state(state, head);
+						if (next_state == -1)
+							continue;
+						vector<Edge> edge_seq;
+						for (int i = 0; i < len; ++i)
+							edge_seq.emplace_back(pos+i, -1, -1, pos+i+1, -1);
+						if (len == rule->left->size()) { // full match
 							nodes[{pos + len, next_state, head}].insert({ pos,state });
-							edges[{pos, state, head, pos + len, next_state}].emplace_back(rule, vector<Edge>{});
-
+							edges[{pos, state, head, pos + len, next_state}].emplace_back(rule, move(edge_seq));
 							act_edges[pos + len].insert({ pos, state, head, pos + len, next_state });
 							act_states[pos + len].insert(next_state);
+						}
+						else { // partial match
+
+							int next_state = get_next_state(state, tail_id);
+							if (next_state == -1)
+								continue;
+							if (debug >= 2) {
+								cout << "Expected partial match: (" << (pos + len) << "," << rule->left->at(len)->name << ") : " << edge_seq << nl;
+								cout << "Inserting * state transition to pos " << (pos + len) << " : " << next_state << nl;
+							}
+							act_states[pos + len].insert(next_state);
+							expected[{pos + len, rule->left->at(len)->id}].emplace_back(pos, state, next_state, rule, move(edge_seq));
 						}
 					}
 				}

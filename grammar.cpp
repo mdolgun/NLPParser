@@ -165,6 +165,15 @@ void GrammarParser::parse_grammar(istream& is) {
 		else if(parse_enabled)
 			parse_rule();
 	}
+	auto auto_dict_backup = auto_dict;
+	auto_dict = None;
+	for (auto& item : templates) {
+		if (debug >= 1)
+			cout << "Template:" << item << nl;
+		buf = item; pos = 0;
+		parse_rule();
+	}
+	auto_dict = auto_dict_backup;
 	if (debug >= 2) {
 		cout << "Trie Dump:\n";
 		dump_trie(grammar->root);
@@ -367,17 +376,7 @@ bool operator==(const Rule& a, const Rule& b) {
 			return false;
 	return true;
 }
-void resolve_reference(Prod* left, Prod* right) {
-	// given LHS and RHS of a rule, for nonterminals on both sides, RHS symbol is added an reference index for the LHS position of the symbol
-	for (auto rsymbol : *right) {
-		if (!rsymbol->nonterminal)
-			continue;
-		auto p = find_if(left->begin(), left->end(), [&rsymbol](auto lsymbol) {return lsymbol->name == rsymbol->name; }); // find the first symbol on the left, where it matches the right symbol
-		if (p != left->end()) {
-			rsymbol->idx = p - left->begin();
-		}
-	}
-}
+
 void GrammarParser::create_rule(PreSymbol* head, PreProd* left, PreProd* right, FeatPtr& feat_list, FeatList* check_list, int macro_idx) {
 	SymbolTable* symbol_table = &grammar->symbol_table;
 
@@ -395,51 +394,19 @@ void GrammarParser::create_rule(PreSymbol* head, PreProd* left, PreProd* right, 
 	}
 	if (flag == None) { // don't add to dict
 		Rule* rule = new Rule(new Symbol(head, symbol_table, macro_idx), new Prod(left, symbol_table, macro_idx), new Prod(right, symbol_table, macro_idx), feat_list, check_list);
-		resolve_reference(rule->left, rule->right);
+		rule->resolve_references();
 		rule->id = grammar->rules.size();
 		grammar->rules.emplace_back(rule); // unique_ptr is created for the rule
 	}
 	else if (flag == TermOnly) { // add whole rule LHS to the dict
 		Rule* rule = new Rule(new Symbol(head, symbol_table, macro_idx), new Prod(left, symbol_table, macro_idx), new Prod(right, symbol_table), feat_list, check_list);
-		add_trie(grammar->root, rule->sentence(), rule);
+		add_trie(grammar->root, rule->terminal_prefix(), rule);
 	}
 	else { // normalize the rule so that it starts with a dummy NonTerminal which contains initial terminals
-		Rule* new_rule = new Rule();
-		for (auto it = left->begin(); it != p; ++it) // copy all starting terminals to the new rule
-			new_rule->left->push_back(new Symbol(&*it, nullptr, macro_idx));
-		int head_id = symbol_table->add(head->name, true);
-
-		auto& entries = tail_map[head_id]; // get all transformed rules having same head e.g.  V -> V$0,  V -> V$1 Obj,  V -> V$2 Obj Obj
-		auto q = find(entries.begin(), entries.end(), *new_rule); // search if an equivalent rule exists 
-																  // two rules are equivalent if all parameters except initial left terminals are the same
-																  // e.g (V -> watch Obj , V -> look after Obj) are equivalent, can be reduced to V -> V$0 Obj , V$0 -> watch , V$0 -> look after
-		string name;
-		int symbol;
-		
-		if (q == entries.end()) { // if no equivalent rule is found, then create the parent rule (eg V -> V$0 Obj )
-			Rule* rule = new Rule(new Symbol(head, symbol_table, macro_idx), new Prod(), new Prod(right, symbol_table), feat_list, check_list);
-			name = head->name + '$' + to_string(entries.size());
-			symbol = symbol_table->add(name, true);
-			rule->left->push_back(new Symbol(name, true, symbol));
-			for (auto it = p; it != left->end(); ++it) {
-				rule->left->push_back(new Symbol(&*it, symbol_table, macro_idx));
-			}
-			auto p2 = find_if(right->begin(), right->end(), [](auto& lsymbol) {return lsymbol.nonterminal; }); // find the first nonterminal position
-			rule->id = grammar->rules.size();
-			resolve_reference(rule->left, rule->right);
-			entries.push_back(ref(*rule));
-			grammar->rules.emplace_back(rule); // unique_ptr is created for the transformed rule
-		}
-		else // there exists another tail-equivalent rule, just copy the name of the left-most symbol(NT)
-		{
-			name = q->get().left->at(0)->name;
-			symbol = symbol_table->add(name, true);
-		}
-		new_rule->head = new Symbol(name, true, symbol);
-
-		//if (debug >= 3)
-		//	cout << "***" << *rule << '\n';
-		add_trie(grammar->root, new_rule->sentence(), new_rule);
+		Rule* rule = new Rule(new Symbol(head, symbol_table, macro_idx), new Prod(left, symbol_table, macro_idx), new Prod(right, symbol_table), feat_list, check_list);
+		add_trie(grammar->root, rule->terminal_prefix(), rule);
+		rule->resolve_references();
+		templates.insert(rule->get_template());
 	}
 }
 
