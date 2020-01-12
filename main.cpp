@@ -67,8 +67,6 @@ void UnitTest::test_case(string fname) {
 				if (profile >= 1)
 					cout << "ParseGrammar: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << " mics\n";
 
-				if (debug >= 1)
-					parser->print_rules(cout);
 				start = std::chrono::system_clock::now();
 				parser->compile();
 				end = std::chrono::system_clock::now();

@@ -26,6 +26,22 @@ void load(istream& is, string& s) {
 	is.read(&s[0], size);
 }
 
+void save_templates(ostream& os, Grammar& grammar) {
+	save(os, static_cast<int>(grammar.templates.size()));
+	for (auto item : grammar.templates)
+		save(os, item);
+}
+
+void load_templates(istream& is, Grammar& grammar) {
+	int size;
+	load(is, size);
+	for (int i = 0; i < size; ++i) {
+		string s;
+		load(is, s);
+		grammar.templates.insert(s);
+	}
+}
+
 void save(ostream& os, Grammar& grammar) {
 	save(os, (int)grammar.rules.size());
 	for (auto& rule : grammar.rules) {
@@ -49,7 +65,7 @@ void Rule::save(ostream& os) {
 	feat->save(os);
 }
 
-Rule::Rule(istream& is,SymbolTable* symbol_table) : head(new Symbol(is,symbol_table)), left(new Prod(is)), right(new Prod(is)), feat(new FeatList(is)) {
+Rule::Rule(istream& is,SymbolTable* symbol_table) : head(new Symbol(is,symbol_table)), left(new Prod(is,symbol_table)), right(new Prod(is,symbol_table)), feat(new FeatList(is)) {
 }
 
 void Prod::save(ostream& os) {

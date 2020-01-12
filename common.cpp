@@ -903,3 +903,28 @@ void ltrim(std::string &s) {
 void rtrim(std::string &s) {
 	s.erase(std::find_if(s.rbegin(), s.rend(), [](int ch) { return !isascii(ch) || !std::isspace(ch); }).base(), s.end());
 }
+
+void Grammar::print_rules(ostream& os) {
+	os << "==========" << nl;
+	int n_rules = rules.size();
+	cout << "Rules: " << n_rules << nl;
+	for (int i = 0; i < n_rules; i++)
+		os << i << ':' << *rules[i] << nl;
+}
+void Grammar::print_symbol_table(ostream& os) {
+	os << "==========" << nl;
+	int n_symbols = symbol_table.size();
+	cout << "SymbolTable: " << n_symbols << nl;
+	for (int i = 0; i < n_symbols; ++i)
+		cout << symbol_table.get(i) << " : " << i << nl;
+}
+void Grammar::print_dict(ostream& os) {
+	os << "==========" << nl;
+}
+
+void Grammar::print_templates(ostream& os) {
+	os << "==========" << nl;
+	os << "Templates:" << templates.size() << nl;
+	for (auto& item : templates)
+		os << item << nl;
+}

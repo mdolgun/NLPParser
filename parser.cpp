@@ -23,16 +23,6 @@ void Parser::persist(ofstream& os) {
 void Parser::load_grammar(const char* fname) {
 	GrammarParser grammar(this);
 	grammar.load_grammar(fname);
-	if (debug >= 1) {
-		cout << "Rules:" << nl;
-		print_rules(cout);
-	}
-}
-
-void Parser::print_rules(ostream& os) {
-	for (int i = 0; i < rules.size(); i++) {
-		os << i << ':' << *rules[i] << nl;
-	}
 }
 
 //ostream& operator<< (ostream& os, const Edge& edge) {
@@ -789,59 +779,67 @@ void Parser::parse(string input_str) {
 			auto [start_pos, start_state, edge_symbol, end_pos, end_state] = edge;
 			assert(pos == end_pos);
 
-			for (auto[start_pos, start_state, end_state, rule, edge_seq] : expected[{start_pos, edge_symbol}]) {
-				edge_seq.push_back(edge);
-				int head = rule->head->id;
-				int rulepos = edge_seq.size();
-				end_state = get_next_state(end_state, edge_symbol);
-				assert(end_state != -1);
-				int tail_pos = end_pos;
+			//if (debug >= 2) {
+			//	int found = expected.count({ start_pos, edge_symbol });
+			//	cout  << "Expected check: (" << start_pos << ", " << edge_symbol << '(' << symbol_table.get(edge_symbol) << ")) " << found << nl; 
+			//	if( found ) {
+			//		auto size = expected[{start_pos, edge_symbol}].size();
+			//		cout << "Expected match " << size << ": (" << start_pos << "," << edge_symbol << '(' << symbol_table.get(edge_symbol) << ")\n";
 
-				for (; rulepos < rule->left->size(); ++rulepos, ++tail_pos) {
-					Symbol* symbol = rule->left->at(rulepos);
-					if (symbol->nonterminal)
-						break;
-					if (tail_pos >= inlen) // tail exceeds input length
-						goto mismatch;
-					if (input[tail_pos] != symbol->name) // tail mismatch
-						goto mismatch;
-					edge_seq.emplace_back(tail_pos, -1, -1, tail_pos + 1, -1);
-				}
-
-				if (tail_pos != end_pos) { // there are matched tail terminals
-					end_state = get_next_state(end_state, tail_id);
-					if (end_state == -1)
-						continue;
-				}
-				if (rulepos != rule->left->size()) {
-					Symbol* symbol = rule->left->at(rulepos);
-					if (debug >= 2) {
-						cout << "Expected partial match: (" << tail_pos << "," << symbol->name << ") : " << edge_seq << nl;
-					}
-					expected[{tail_pos, symbol->id}].emplace_back(start_pos, start_state, end_state, rule, move(edge_seq));
-					if (debug >= 2) {
-						cout << "Inserting * state transition to pos " << tail_pos << " : " << end_state;
-					}
-					act_states[tail_pos].insert(end_state);
-				}
-				else {
-					end_state = get_next_state(start_state, head);
+			//		}
+			//	}
+			auto it = expected.find({ start_pos, edge_symbol });
+			if (it != expected.end())
+				for (auto[start_pos, start_state, end_state, rule, edge_seq] : it->second) {
+					edge_seq.push_back(edge);
+					int head = rule->head->id;
+					int rulepos = edge_seq.size();
+					end_state = get_next_state(end_state, edge_symbol);
 					assert(end_state != -1);
-					active.insert(end_state);
-					nodes[{tail_pos, end_state, head}].emplace(start_pos, start_state);
-					Edge new_edge(start_pos, start_state, head, tail_pos, end_state);
-					if (tail_pos == pos) {
-						if (edges.count(new_edge) == 0) {
-							edge_list.push_back(new_edge);
+					int tail_pos = end_pos;
+
+					for (; rulepos < rule->left->size(); ++rulepos, ++tail_pos) {
+						Symbol* symbol = rule->left->at(rulepos);
+						if (symbol->nonterminal)
+							break;
+						if (tail_pos >= inlen) // tail exceeds input length
+							goto mismatch;
+						if (input[tail_pos] != symbol->name) // tail mismatch
+							goto mismatch;
+						edge_seq.emplace_back(tail_pos, -1, -1, tail_pos + 1, -1);
+					}
+
+					if (tail_pos != end_pos) { // there are matched tail terminals
+						end_state = get_next_state(end_state, tail_id);
+						if (end_state == -1)
+							continue;
+					}
+					if (rulepos != rule->left->size()) {
+						Symbol* symbol = rule->left->at(rulepos);
+						if (debug >= 2) {
+							cout << "Expected partial match: (" << tail_pos << "," << symbol->id << ":" << symbol->name << ") : " << start_pos << ' ' << start_state << ' ' << end_state << ' ' << *rule << ' ' << edge_seq << nl;
 						}
+						expected[{tail_pos, symbol->id}].emplace_back(start_pos, start_state, end_state, rule, move(edge_seq));
+						act_states[tail_pos].insert(end_state);
 					}
 					else {
-						act_edges[tail_pos].insert(new_edge);
+						end_state = get_next_state(start_state, head);
+						assert(end_state != -1);
+						active.insert(end_state);
+						nodes[{tail_pos, end_state, head}].emplace(start_pos, start_state);
+						Edge new_edge(start_pos, start_state, head, tail_pos, end_state);
+						if (tail_pos == pos) {
+							if (edges.count(new_edge) == 0) {
+								edge_list.push_back(new_edge);
+							}
+						}
+						else {
+							act_edges[tail_pos].insert(new_edge);
+						}
+						edges[new_edge].emplace_back(rule, move(edge_seq));
 					}
-					edges[new_edge].emplace_back(rule, move(edge_seq));
-				}
 				mismatch:;
-			}
+				}
 
 			for (auto [ruleno, rulepos] : reduce[end_state]) {
 				auto rule = get_rule(ruleno);
@@ -997,9 +995,9 @@ void Parser::parse(string input_str) {
 							int next_state = get_next_state(state, tail_id);
 							if (next_state == -1)
 								continue;
+							auto symbol = rule->left->at(len);
 							if (debug >= 2) {
-								cout << "Expected partial match: (" << (pos + len) << "," << rule->left->at(len)->name << ") : " << edge_seq << nl;
-								cout << "Inserting * state transition to pos " << (pos + len) << " : " << next_state << nl;
+								cout << "Expected partial match: (" << (pos + len) << "," << symbol->id << ":" << symbol->name << ") : " << pos << ' ' << state << ' ' << next_state << ' ' << *rule << ' ' << edge_seq << nl;
 							}
 							act_states[pos + len].insert(next_state);
 							expected[{pos + len, rule->left->at(len)->id}].emplace_back(pos, state, next_state, rule, move(edge_seq));

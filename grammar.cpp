@@ -6,6 +6,9 @@
 
 using namespace std;
 
+void save_templates(ostream& os, Grammar& grammar);
+void load_templates(istream& is, Grammar& grammar);
+
 //SymbolTable symbol_table;
 
 void GrammarParser::skip_ws() {
@@ -128,6 +131,8 @@ void GrammarParser::parse_grammar(istream& is) {
 					throw GrammarError("Invalid Directive Parameter Count: " + buf);
 				auto start = std::chrono::system_clock::now();
 				ofstream os(params[1], ios::binary|ios::out);
+				
+				save_templates(os, *grammar);
 				grammar->root->save(os);
 				auto end = std::chrono::system_clock::now();
 				if (profile >= 1)
@@ -138,6 +143,7 @@ void GrammarParser::parse_grammar(istream& is) {
 					throw GrammarError("Invalid Directive Parameter Count: " + buf);
 				auto start = std::chrono::system_clock::now();
 				ifstream is(params[1], ios::binary | ios::in);
+				load_templates(is, *grammar);
 				grammar->root = new TrieNode(is, &grammar->symbol_table);
 				auto end = std::chrono::system_clock::now();
 				if (profile >= 1)
@@ -167,16 +173,21 @@ void GrammarParser::parse_grammar(istream& is) {
 	}
 	auto auto_dict_backup = auto_dict;
 	auto_dict = None;
-	for (auto& item : templates) {
-		if (debug >= 1)
-			cout << "Template:" << item << nl;
+
+	for (auto& item : grammar->templates) { // convert templates to rules to construct associated states
 		buf = item; pos = 0;
 		parse_rule();
 	}
+
 	auto_dict = auto_dict_backup;
 	if (debug >= 2) {
 		cout << "Trie Dump:\n";
 		dump_trie(grammar->root);
+		grammar->print_symbol_table(cout);
+	}
+	if (debug >= 1) {
+		grammar->print_templates(cout);
+		grammar->print_rules(cout);
 	}
 }
 
@@ -393,20 +404,20 @@ void GrammarParser::create_rule(PreSymbol* head, PreProd* left, PreProd* right, 
 				flag = None;
 	}
 	if (flag == None) { // don't add to dict
-		Rule* rule = new Rule(new Symbol(head, symbol_table, macro_idx), new Prod(left, symbol_table, macro_idx), new Prod(right, symbol_table, macro_idx), feat_list, check_list);
+		Rule* rule = new Rule(new Symbol(head, symbol_table, true, macro_idx), new Prod(left, symbol_table, true, macro_idx), new Prod(right, symbol_table, false, macro_idx), feat_list, check_list);
 		rule->resolve_references();
 		rule->id = grammar->rules.size();
 		grammar->rules.emplace_back(rule); // unique_ptr is created for the rule
 	}
 	else if (flag == TermOnly) { // add whole rule LHS to the dict
-		Rule* rule = new Rule(new Symbol(head, symbol_table, macro_idx), new Prod(left, symbol_table, macro_idx), new Prod(right, symbol_table), feat_list, check_list);
+		Rule* rule = new Rule(new Symbol(head, symbol_table, true, macro_idx), new Prod(left, symbol_table, false, macro_idx), new Prod(right, symbol_table, false, macro_idx), feat_list, check_list);
 		add_trie(grammar->root, rule->terminal_prefix(), rule);
 	}
 	else { // normalize the rule so that it starts with a dummy NonTerminal which contains initial terminals
-		Rule* rule = new Rule(new Symbol(head, symbol_table, macro_idx), new Prod(left, symbol_table, macro_idx), new Prod(right, symbol_table), feat_list, check_list);
+		Rule* rule = new Rule(new Symbol(head, symbol_table, true, macro_idx), new Prod(left, symbol_table, false, macro_idx), new Prod(right, symbol_table, false, macro_idx), feat_list, check_list);
 		add_trie(grammar->root, rule->terminal_prefix(), rule);
 		rule->resolve_references();
-		templates.insert(rule->get_template());
+		grammar->templates.insert(rule->get_template());
 	}
 }
 

@@ -110,7 +110,7 @@ struct Symbol {
 		idx = other->idx;
 		nonterminal = other->nonterminal;
 	}
-	Symbol(PreSymbol* other, SymbolTable* symbol_table = nullptr, int macro_idx = -1) {
+	Symbol(PreSymbol* other, SymbolTable* symbol_table, bool terminal_symbol, int macro_idx) {
 		fparam = other->fparam;
 		nonterminal = other->nonterminal;
 		if (macro_idx != -1 && other->macro_values != nullptr)
@@ -127,7 +127,8 @@ struct Symbol {
 				if (pos != s.npos)
 					s = s.substr(0, pos);
 			}
-			id = symbol_table->add(s, other->nonterminal);
+			if (nonterminal || terminal_symbol)
+				id = symbol_table->add(s, other->nonterminal);
 		}
 	}
 	Symbol(istream& is, SymbolTable* symbol_table = nullptr);
@@ -143,10 +144,10 @@ struct Prod : public vector<Symbol*> {
 	int cost = 0;
 	bool cut = false;
 	Prod() = default;
-	Prod(PreProd* other, SymbolTable* symbol_table,int macro_idx=-1) {
+	Prod(PreProd* other, SymbolTable* symbol_table,bool terminal_symbol,int macro_idx) {
 		reserve(other->size());
 		for (auto& psymbol : *other) {
-			push_back(new Symbol(&psymbol, symbol_table, macro_idx));
+			push_back(new Symbol(&psymbol, symbol_table, terminal_symbol, macro_idx));
 		}
 		cost = other->cost;
 		cut = other->cut;
@@ -249,6 +250,11 @@ struct Grammar {
 	vector<RulePtr> rules;
 	TrieNode* root;
 	SymbolTable symbol_table;
+	unordered_set<string> templates; // templates for matching dictionary entries e.g. "turn Obj on" and "think Obj over" has a template "*
+	void print_rules(ostream& os);
+	void print_symbol_table(ostream& os);
+	void print_dict(ostream& os);
+	void print_templates(ostream& os);
 };
 
 using EnumVec = vector<pair<string, int>>;

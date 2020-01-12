@@ -16,7 +16,7 @@ struct GrammarParser {
 	unordered_map<string, unordered_map<string,vector<string>>> macros; // e.g. macros["V"]["go"] = { "go", "goes", "going", "went", "gone" }
 	
 	vector<bool> if_stack; // keeps %ifdef stack with their boolean values (e.g. parse_enabled is true only if all values in if_stack is true)
-	unordered_set<string> templates; // templates for matching dictionary entries e.g. "turn Obj on" and "think Obj over" has a template "*
+	
 	// because we cannot override pointer operator==, we had to implement it as vector of Rule references
 	GrammarParser(Grammar* _grammar) :
 		SYMBOL(R"#((\$?[_A-Z][-_A-Za-z0-9$]*'*)|("[^"]*"|\$?[^|{:[_A-Z#!][\S]*))#"),
