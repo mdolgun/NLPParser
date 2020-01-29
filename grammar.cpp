@@ -175,8 +175,9 @@ void GrammarParser::parse_grammar(istream& is) {
 	auto_dict = None;
 
 	for (auto& item : grammar->templates) { // convert templates to rules to construct associated states
-		buf = item; pos = 0;
+		buf = item.first; pos = 0;
 		parse_rule();
+		item.second = grammar->rules.back().get();
 	}
 
 	auto_dict = auto_dict_backup;
@@ -417,7 +418,8 @@ void GrammarParser::create_rule(PreSymbol* head, PreProd* left, PreProd* right, 
 		Rule* rule = new Rule(new Symbol(head, symbol_table, true, macro_idx), new Prod(left, symbol_table, false, macro_idx), new Prod(right, symbol_table, false, macro_idx), feat_list, check_list);
 		add_trie(grammar->root, rule->terminal_prefix(), rule);
 		rule->resolve_references();
-		grammar->templates.insert(rule->get_template());
+		grammar->templates.emplace(rule->get_template(),nullptr);
+		grammar->template_rules.emplace(rule, nullptr);
 	}
 }
 

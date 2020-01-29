@@ -16,17 +16,22 @@ using EdgeInfo = tuple<Rule*, EdgeSeq>;
 using BackParam = tuple<int, int, int>; // <pos,state,symbol>
 struct Parser : public Grammar{
 	Edge top_edge;
-	//vector<RulePtr> rules;
-	//TrieNode* root;
 	RuleDict ruledict;
+	vector<bool> nullable; // nullable stores if a nonterminal can be nullable (i.e. can derive to empty string) for any rule
 	vector<StateSet> reduce, ereduce;
 	vector<unordered_map<int, int>> dfa;
 	vector<string> input;
 	unordered_map<Edge, vector<EdgeInfo>> edges;
+	unordered_map<BackParam, StateSet> nodes; // maps(pos, state, symbol) to set of(oldpos, oldstate) (i.e adds an arc from(pos, state) to(oldpos, oldstate) labeled with symbol)
+	unordered_map<tuple<int, int, int, Rule*>, StateSet> back_nodes;
+	/**/
+	int tail_id;
+	/**/
+
 	int n_states, n_symbols;
 	Parser() {
 		root = new TrieNode;
-		//symbol_table = &::symbol_table;
+
 	}
 	Rule* get_rule(int id) {
 		// returns the ordinary (non-owned) pointer for the given Symbol id
@@ -43,12 +48,14 @@ struct Parser : public Grammar{
 	void closure(StateSet& stateset);
 	void print_ruledict(ostream& os);
 	void print_stateset(ostream& os, StateSet& stateset);
+	void print_rule(ostream& os, Rule* rule, int rulepos);
 	void print_state(ostream& os, int ruleno, int rulepos);
 	void print_edge(ostream& os, Edge& edge);
 	void compile();
 	void print_dfa(ostream& os, bool csv = false);
 	void print_dfa_dot(ostream& os);
-	void match_and_reduce(unordered_map<BackParam, StateSet>& nodes, unordered_set<int>& active, const char* in, vector<Edge>& edge_seq, Prod* body, int rulepos, int pos, int state);
+	void match_and_reduce(unordered_set<int>& active, vector<Edge>& edge_list, vector<Edge>& edge_seq, Rule* rule, int rulepos, const Edge& edge);
+	void match_and_reduce(unordered_set<int>& active, vector<Edge>& edge_list, vector<Edge>& edge_seq, Rule* rule, int rulepos, int dic_rulepos, const Edge& edge);
 	void parse(string input);
 	void print_parse(ostream& os, Edge& parent_edge, int level = 0, int indent_size = 0, bool extended = false);
 	void print_parse_dot(ostream& os, unordered_set<Edge>&completed, Edge& parent_edge);

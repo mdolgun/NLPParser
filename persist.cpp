@@ -29,7 +29,7 @@ void load(istream& is, string& s) {
 void save_templates(ostream& os, Grammar& grammar) {
 	save(os, static_cast<int>(grammar.templates.size()));
 	for (auto item : grammar.templates)
-		save(os, item);
+		save(os, item.first);
 }
 
 void load_templates(istream& is, Grammar& grammar) {
@@ -38,7 +38,7 @@ void load_templates(istream& is, Grammar& grammar) {
 	for (int i = 0; i < size; ++i) {
 		string s;
 		load(is, s);
-		grammar.templates.insert(s);
+		grammar.templates.emplace(s, nullptr);
 	}
 }
 

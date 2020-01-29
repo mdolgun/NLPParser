@@ -37,7 +37,7 @@ vector<string> split_strip(const string& s, char delim) {
 	}
 	return result;
 }
-
+extern Parser* p_parser;
 void UnitTest::test_case(string fname) {
 	// loads an executes test cases from file "fname"
 	int case_cnt = 0, success_cnt = 0;
@@ -67,6 +67,8 @@ void UnitTest::test_case(string fname) {
 				if (profile >= 1)
 					cout << "ParseGrammar: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << " mics\n";
 
+				p_parser = parser.get(); // quick & dirty solution
+
 				start = std::chrono::system_clock::now();
 				parser->compile();
 				end = std::chrono::system_clock::now();
@@ -77,6 +79,7 @@ void UnitTest::test_case(string fname) {
 				cerr << e.what() << nl;
 				return;
 			}
+			
 		}
 		else if (command == "###input") {
 			string input;
@@ -123,14 +126,6 @@ void UnitTest::test_case(string fname) {
 					auto end = std::chrono::system_clock::now();
 					auto mics_parse = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 					total_parse += mics_parse;
-					if (raw_dot) {
-						ofstream os(fname + ".raw.dot");
-						parser->print_parse_dot(os);
-					}
-					if (raw_dot) {
-						ofstream os(fname + ".rawall.dot");
-						parser->print_parse_dot_all(os);
-					}
 
 					start = std::chrono::system_clock::now();
 					ptree = parser->make_tree(shared);
@@ -198,6 +193,14 @@ void UnitTest::test_case(string fname) {
 				}
 				catch (ParseError& e) {
 					cout << "  *ParseError: " << e.what() << nl;
+				}
+				if (raw_dot) {
+					ofstream os(fname + ".raw.dot");
+					parser->print_parse_dot(os);
+				}
+				if (raw_dot) {
+					ofstream os(fname + ".rawall.dot");
+					parser->print_parse_dot_all(os);
 				}
 			}
 			if (profile >= 1)

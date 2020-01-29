@@ -211,6 +211,14 @@ void print_tree(ostream& os, TreeNode* node, int level, int indent_size, bool ex
 	// helper for print_tree
 	indent(os, level * indent_size);
 	os << *node->name;
+/*
+	if (node->id == -1) {
+		cout << input[node->start_pos]; 
+		for (int i = node->start_pos + 1; i < node->end_pos; ++i) {
+			cout << input[i];
+		}
+	}
+*/
 	if (!node->nonterm)
 		return;
 
@@ -230,6 +238,8 @@ void print_tree(ostream& os, TreeNode* node, int level, int indent_size, bool ex
 				indent(os, level * indent_size);
 				if (option->rule->id != -1)
 					os << '#' << option->rule->id;
+				else
+					os << '{' << *option->rule << '}';
 				if (option->cost)
 					os << '(' << option->cost << ')';
 				if (option->rule->right->cost)
@@ -250,6 +260,8 @@ void print_tree(ostream& os, TreeNode* node, int level, int indent_size, bool ex
 				indent(os, level * indent_size);
 				if (option->rule->id != -1)
 					os << '#' << option->rule->id;
+				else
+					os << '{' << *option->rule << '}';
 				if (option->feat_list)
 					os << *option->feat_list;
 				if (indent_size && node_seq.size())
@@ -533,6 +545,7 @@ bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList
 					if (debug >= 2)
 						cout << '*' << nl;
 					return false;
+					//throw UnifyError(format("{}: {} {}", name, it->second, val));
 				}
 			}
 			else {
@@ -578,6 +591,7 @@ bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList
 							if (debug >= 2)
 								cout << '*' << nl;
 							return false;
+							//throw UnifyError(format("{}=*{}: {} {}", dst_name, src_name, dit->second, sit->second));
 						}
 					}
 					else { // add src feat into dst
@@ -598,6 +612,7 @@ bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList
 							if (debug >= 2)
 								cout << '*' << nl;
 							return false;
+							//throw UnifyError(format("{}: {} {}", name, val, sit->second));
 						}
 					}
 				}
@@ -608,6 +623,7 @@ bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList
 							if (debug >= 2)
 								cout << '*' << nl;
 							return false;
+							//throw UnifyError(format("{}: {} {}", name, dit->second, val));
 						}
 					}
 					else { // add param feat into dst
@@ -705,6 +721,7 @@ TreeNodePtr unify_tree(TreeNodePtr node,unordered_set<TreeNode*>* visited) {
 		return node;
 	string last_error;
 	if (!node->nonterm)
+	//if (!node->options.size())
 		return node;
 	vector<OptionNodePtr> new_options;
 	for (auto option : node->options) {
@@ -714,6 +731,7 @@ TreeNodePtr unify_tree(TreeNodePtr node,unordered_set<TreeNode*>* visited) {
 			for (int rulepos = 0; rulepos < option->left.size(); rulepos++) {
 				auto sub_node = option->left[rulepos];
 				if (!sub_node->nonterm) {
+				//if (!sub_node->options.size()) {
 					for (auto& worklist_item : worklist) {
 						get<0>(worklist_item).push_back(sub_node);
 					}
@@ -926,5 +944,5 @@ void Grammar::print_templates(ostream& os) {
 	os << "==========" << nl;
 	os << "Templates:" << templates.size() << nl;
 	for (auto& item : templates)
-		os << item << nl;
+		os << item.first << nl;
 }

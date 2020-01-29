@@ -250,7 +250,8 @@ struct Grammar {
 	vector<RulePtr> rules;
 	TrieNode* root;
 	SymbolTable symbol_table;
-	unordered_set<string> templates; // templates for matching dictionary entries e.g. "turn Obj on" and "think Obj over" has a template "*
+	unordered_map<string,Rule*> templates; // templates for matching dictionary entries e.g. "turn Obj on" and "think Obj over" has a template "* Obj *"
+	unordered_map<Rule*, Rule*> template_rules;
 	void print_rules(ostream& os);
 	void print_symbol_table(ostream& os);
 	void print_dict(ostream& os);
