@@ -53,7 +53,7 @@ void load(istream& is, Grammar& grammar) {
 	load(is, size);
 	grammar.rules.reserve(size);
 	for (int i = 0; i<size; ++i) {
-		Rule* rule = new Rule(is, &grammar.symbol_table);
+		Rule* rule = new Rule(is, grammar);
 		grammar.rules.emplace_back(rule);
 		rule->id = i;
 	}
@@ -65,7 +65,13 @@ void Rule::save(ostream& os) {
 	feat->save(os);
 }
 
-Rule::Rule(istream& is,SymbolTable* symbol_table) : head(new Symbol(is,symbol_table)), left(new Prod(is,symbol_table)), right(new Prod(is,symbol_table)), feat(new FeatList(is)) {
+Rule::Rule(istream& is,Grammar& grammar) : 
+	head(new Symbol(is,&grammar.symbol_table)), 
+	left(new Prod(is, &grammar.symbol_table)),
+	right(new Prod(is, &grammar.symbol_table)),
+	feat(new FeatList(is)) {
+	grammar.templates.emplace(get_template(), nullptr);
+	grammar.template_rules.emplace(this, nullptr);
 }
 
 void Prod::save(ostream& os) {
@@ -183,15 +189,15 @@ void TrieNode::save(ostream& os) {
 	for (auto child : children)
 		child->save(os);
 }
-TrieNode::TrieNode(istream& is, SymbolTable* symbol_table) {
+TrieNode::TrieNode(istream& is, Grammar& grammar) {
 	load(is, keys);
 	int value_size, child_size;
 	load(is, value_size);
 	values.reserve(value_size);
 	for (int i = 0; i < value_size; ++i)
-		values.push_back(new Rule(is, symbol_table));
+		values.push_back(new Rule(is, grammar));
 	load(is, child_size);
 	children.reserve(child_size);
 	for (int i = 0; i < child_size; ++i)
-		children.push_back(new TrieNode(is, symbol_table));
+		children.push_back(new TrieNode(is, grammar));
 }

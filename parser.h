@@ -17,7 +17,6 @@ using BackParam = tuple<int, int, int>; // <pos,state,symbol>
 struct Parser : public Grammar{
 	Edge top_edge;
 	RuleDict ruledict;
-	vector<bool> nullable; // nullable stores if a nonterminal can be nullable (i.e. can derive to empty string) for any rule
 	vector<StateSet> reduce, ereduce;
 	vector<unordered_map<int, int>> dfa;
 	vector<string> input;

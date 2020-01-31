@@ -132,7 +132,7 @@ void GrammarParser::parse_grammar(istream& is) {
 				auto start = std::chrono::system_clock::now();
 				ofstream os(params[1], ios::binary|ios::out);
 				
-				save_templates(os, *grammar);
+				//save_templates(os, *grammar);
 				grammar->root->save(os);
 				auto end = std::chrono::system_clock::now();
 				if (profile >= 1)
@@ -143,8 +143,8 @@ void GrammarParser::parse_grammar(istream& is) {
 					throw GrammarError("Invalid Directive Parameter Count: " + buf);
 				auto start = std::chrono::system_clock::now();
 				ifstream is(params[1], ios::binary | ios::in);
-				load_templates(is, *grammar);
-				grammar->root = new TrieNode(is, &grammar->symbol_table);
+				//load_templates(is, *grammar);
+				grammar->root = new TrieNode(is, *grammar);
 				auto end = std::chrono::system_clock::now();
 				if (profile >= 1)
 					cout << "LoadDict " << params[1] << ": " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << " mics\n";
@@ -292,6 +292,12 @@ void GrammarParser::parse_feat(FeatList* feat_list, FeatList*& check_list) {
 		get_feat(name);
 		get_token("=");
 		get_feat(value);
+		if (value[0] == '!' || value[0] == '?') {
+			if (!check_list)
+				check_list = new FeatList;
+			(*check_list)[name] = value;
+			return;
+		}
 	}
 	(*feat_list)[name] = value;
 }

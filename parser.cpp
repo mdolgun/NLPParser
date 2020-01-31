@@ -362,7 +362,42 @@ TreeNode* Parser::make_tree(Edge& edge) {
 	}
 	return node;
 }
+/*
+struct _TreeNode;
+struct _OptionNode {
+	vector<_TreeNode> left;
+	vector<_TreeNode> right;
+	_OptionNode(vector<_TreeNode>&& _left) : left(_left) { }
+};
 
+struct _TreeNode : public variant<string, vector<_OptionNode>> {
+	int start_pos, end_pos;
+	_TreeNode(const string& name) : variant<string, vector<_OptionNode>>(name) { }
+	_TreeNode(vector<_OptionNode>&& option_vec) : variant<string, vector<_OptionNode>>(option_vec) { }
+};
+void make_tree(unordered_map<Edge, vector<EdgeInfo>>& edges, Edge& edge, vector<_TreeNode>& p_nodes) {
+	SymbolTable symbol_table;
+	vector<string> input;
+
+	auto[start_pos, start_state, parent_symbol, end_pos, end_state] = edge;
+	if (parent_symbol == -1 && !symbol_table.nonterminal(parent_symbol)) {
+		p_nodes.emplace_back(input[start_pos]);
+	}
+	else {
+		vector<_OptionNode> options;
+		for (auto&[rule, edge_seq] : edges[edge]) {
+			vector<_TreeNode> nodes;
+			for (auto sub_edge : edge_seq) {
+				make_tree(edges, sub_edge, nodes);
+			}
+			options.emplace_back(move(nodes));
+		}
+		p_nodes.emplace_back(move(options));
+	}
+	p_nodes.back().start_pos = start_pos;
+	p_nodes.back().end_pos = end_pos;
+}
+*/
 TreeNode* Parser::make_tree(bool shared) {
 	if (shared) {
 		unordered_map<tuple<int,int,int>, TreeNode*> visited;
@@ -636,8 +671,7 @@ void Parser::compile() {
 		cout << "RuleDict:\n";
 		print_ruledict(cout);
 	}
-
-	nullable.resize(n_symbols);
+	vector<bool> nullable(n_symbols); // nullable stores if a nonterminal can be nullable (i.e. can derive to empty string) for any rule
 	bool modified = true;
 	while (modified)
 	{
@@ -647,7 +681,7 @@ void Parser::compile() {
 			int head = rules[ruleno]->head->id;
 			if (nullable[head])
 				continue;
-			if (all_of(prod->begin(), prod->end(), [this](Symbol* symbol)->bool {return nullable[symbol->id]; })) {
+			if (all_of(prod->begin(), prod->end(), [&nullable](Symbol* symbol)->bool {return nullable[symbol->id]; })) {
 				nullable[head] = true;
 				modified = true;
 			}
@@ -714,7 +748,7 @@ void Parser::compile() {
 			if (ruleno == 0) // we don't reduce S'->S
 				continue;
 			Prod* body = rules[ruleno]->left;
-			if (all_of(body->cbegin() + rulepos, body->cend(), [this](Symbol* symbol)->bool {return nullable[symbol->id]; })) {
+			if (all_of(body->cbegin() + rulepos, body->cend(), [&nullable](Symbol* symbol)->bool {return nullable[symbol->id]; })) {
 				if (rulepos == 0) // check if an empty-reducable rule
 					ereduce[i].insert(rule_state); // insert (ruleno,0) as e-reducable for state=i
 				else

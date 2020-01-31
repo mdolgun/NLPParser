@@ -299,16 +299,6 @@ void print_tree(ostream& os, TreeNode* tree, bool indented, bool extended, bool 
 	os << nl;
 }
 
-struct Node;
-using Option = pair<vector<Node>, int>;
-using OptionVec = vector<Option>;
-
-struct Node : public variant<string, vector<Option>> {
-	Node(const string& name) : variant<string, vector<Option>>(name) { }
-	Node(OptionVec&& option_vec) : variant<string, vector<Option>>(option_vec) { }
-};
-
-
 ostream& operator<<(ostream& os, vector<Node>& nodes) {
 	bool first_node = true;
 	for (auto& node : nodes) {
@@ -574,16 +564,6 @@ bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList
 				}
 
 				auto sit = src->find(src_name);
-				//if (check_list) {
-				//	auto cit = check_list->find(dst_name);
-				//	if (cit != check_list->end()) {
-				//		bool found = sit != src->end();
-				//		if (cit->second == "?" && !found)
-				//			return false;
-				//		else if(cit->second == "!" && found)
-				//			return false;
-				//	}
-				//}
 				if (sit != src->end()) { // parameter exist in src
 					auto dit = dst->find(dst_name);
 					if (dit != dst->end()) { // same feat exist in dst too
@@ -641,12 +621,20 @@ bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList
 	if (check_list) {
 		for (auto& [name, val] : *check_list) {
 			auto it = dst->find(name);
-			if (it != dst->end()) {
-				if (val == "!")
+			if (val == "!") {
+				if (it != dst->end())
 					return false;
 			}
-			else {
-				if (val == "?")
+			else if (val == "?") {
+				if (it == dst->end())
+					return false;
+			}
+			else if (val[0] == '!') {
+				if (it == dst->end() || val.compare(1, string::npos, it->second) == 0)
+					return false;
+			}
+			else if (val[0] == '?') {
+				if (it == dst->end() || val.compare(1, string::npos, it->second) != 0)
 					return false;
 			}
 		}

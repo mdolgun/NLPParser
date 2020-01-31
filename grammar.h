@@ -21,7 +21,7 @@ struct GrammarParser {
 	GrammarParser(Grammar* _grammar) :
 		SYMBOL(R"#((\$?[_A-Z][-_A-Za-z0-9$]*'*)|("[^"]*"|\$?[^|{:[_A-Z#!][\S]*))#"),
 		NONTERM(R"#(\$?[_A-Z][-_A-Za-z0-9$]*'*)#"),
-		FEAT(R"#([*+-]?[-_A-Za-z0-9]*)#"),
+		FEAT(R"#([?!]?[*+-]?[-_A-Za-z0-9]*)#"),
 		INTEGER(R"#(-?[1-9][0-9]*)#")
 	{
 		pos = 0;

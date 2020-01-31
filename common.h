@@ -160,7 +160,7 @@ struct Prod : public vector<Symbol*> {
 inline ostream& operator<<(ostream& os, const Prod& obj) {
 	return obj.print(os);
 }
-
+struct Grammar;
 struct Rule {
 	int id = -1;
 	Symbol* head;
@@ -175,7 +175,7 @@ struct Rule {
 		feat = FeatPtr(new FeatList);
 	}
 	Rule(Symbol* _head, Prod* _left, Prod* _right, FeatPtr& _feat, FeatList* _check_list) : head(_head),left(_left),right(_right),feat(_feat), check_list(_check_list) { }
-	Rule(istream& is, SymbolTable* symbol_table);
+	Rule(istream& is, Grammar& grammar);
 	void save(ostream& os);
 	ostream& print(ostream& os) const;
 	string terminal_prefix() const;
@@ -197,7 +197,7 @@ struct TrieNode {
 	vector<TrieNode*> children;
 	vector<value_type> values;
 	TrieNode() = default;
-	TrieNode(istream& is, SymbolTable* symbol_table);
+	TrieNode(istream& is, Grammar& grammar);
 	void save(ostream& os);
 };
 
@@ -256,6 +256,15 @@ struct Grammar {
 	void print_symbol_table(ostream& os);
 	void print_dict(ostream& os);
 	void print_templates(ostream& os);
+};
+
+struct Node;
+using Option = pair<vector<Node>, int>;
+using OptionVec = vector<Option>;
+
+struct Node : public variant<string, vector<Option>> {
+	Node(const string& name) : variant<string, vector<Option>>(name) { }
+	Node(OptionVec&& option_vec) : variant<string, vector<Option>>(option_vec) { }
 };
 
 using EnumVec = vector<pair<string, int>>;
