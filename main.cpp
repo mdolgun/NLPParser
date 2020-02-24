@@ -300,13 +300,14 @@ void UnitTest::test_dir(string dirname) {
 	debug = 0;
 	debug_mem = 0;
 	int case_total = 0, success_total = 0;
-	namespace fs = experimental::filesystem;
+	//namespace fs = experimental::filesystem;
+	namespace fs = filesystem;
 
 	for (const auto & entry : fs::directory_iterator(dirname))
 		if (entry.path().extension() == ".tst") {
-			auto fname = entry.path().u8string();
+			auto fname = reinterpret_cast<const char*>(entry.path().u8string().c_str());
 			cout << "FILE:" << fname << nl;
-			test_case(fname.c_str());
+			test_case(fname);
 		}
 }
 void UnitTest::print_result() {

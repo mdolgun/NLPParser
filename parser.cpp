@@ -1056,6 +1056,7 @@ void Parser::parse(string input_str) {
 				}
 				nodes[{pos, next_state, head}].emplace(pos, state);
 				edges[{pos, state, head, pos, next_state}].emplace_back(rule, move(edge_seq));
+				// TODO: Dictionary rules doesnot support non-terminal empty rules e.g  V -> think That SThat where That is nullable
 			}
 		}
 		if (pos == inlen) { // all the words are consumed
