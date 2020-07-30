@@ -215,7 +215,7 @@ string PostProcessor::process(string s) {
 	}
 	s = move(out);
 	in = s.c_str();
-	char last_letter = 'e', last_vowel_type = 1;
+	//char last_letter = 'e', last_vowel_type = 1;
 	while (*in) {
 		char c = *in;
 		bool is_vowel_next_letter = (in[1] == '+') ? is_vowel(in[2]) : is_vowel(in[1]);

@@ -132,7 +132,7 @@ ostream& join(ostream& os, Iterator start, Iterator end, const char*delim) {
 			os << delim;
 		else
 			flag = true;
-		os << **it;
+		os << *it;
 	}
 	return os;
 }

@@ -26,6 +26,24 @@ void load(istream& is, string& s) {
 	is.read(&s[0], size);
 }
 
+void save_suffixes(ostream& os, Grammar& grammar) {
+	save(os, static_cast<int>(grammar.suffixes.size()));
+	for (auto item : grammar.suffixes) {
+		save(os, item.first);
+		save(os, item.second);
+	}
+}
+void load_suffixes(istream& is, Grammar& grammar) {
+	int size;
+	load(is, size);
+	for (int i = 0; i < size; ++i) {
+		string key, val;
+		load(is, key);
+		load(is, val);
+		grammar.suffixes[key] = val;
+	}
+}
+
 void save_templates(ostream& os, Grammar& grammar) {
 	save(os, static_cast<int>(grammar.templates.size()));
 	for (auto item : grammar.templates)

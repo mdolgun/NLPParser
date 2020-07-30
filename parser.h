@@ -75,9 +75,12 @@ struct Parser : public Grammar{
 struct UnitTest {
 	bool shared, dot, raw_dot;
 	int case_total = 0, success_total = 0;
-	static string get_lines(ifstream& is, stringstream& ref);
+	int line_num = 0;
+	ifstream& get_line(ifstream& is, string& line);
+	string get_lines(ifstream& is, stringstream& ref);
 	UnitTest(bool _shared = false, bool _dot = false, bool _raw_dot = false) : shared(_shared),dot(_dot),raw_dot(_raw_dot) { }
 	static void diff(string a, string b);
+	void parse_sent(string sent);
 	void test_case(string fname);
 	void test_dir(string dirname);
 	void print_result();

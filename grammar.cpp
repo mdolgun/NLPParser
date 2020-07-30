@@ -6,8 +6,8 @@
 
 using namespace std;
 
-void save_templates(ostream& os, Grammar& grammar);
-void load_templates(istream& is, Grammar& grammar);
+void save_suffixes(ostream& os, Grammar& grammar);
+void load_suffixes(istream& is, Grammar& grammar);
 
 //SymbolTable symbol_table;
 
@@ -49,7 +49,7 @@ bool GrammarParser::get_token(const char* token, bool ensure, bool skip_ws) {
 	}
 	if (ensure) {
 		throw GrammarError(
-			format("Line:{} Pos:{} '{}' expected but found: {}...",
+			format("File:{} Line:{} Pos:{} '{}' expected but found: {}...", file,
 				line, pos, token, get_rest()
 			)
 		);
@@ -57,10 +57,12 @@ bool GrammarParser::get_token(const char* token, bool ensure, bool skip_ws) {
 	return false;
 }
 
-void GrammarParser::parse_grammar(istream& is) {
-	buf = "S' -> S() : S()";
-	parse_rule();
-	line = 0;
+void GrammarParser::parse_grammar(istream& is,int level,int start_line) {
+	if (!level) {
+		buf = "S' -> S() : S()";
+		parse_rule();
+	}
+	line = start_line - 1;
 	while (getline(is, buf)) {
 		pos = 0;
 		line++;
@@ -122,16 +124,20 @@ void GrammarParser::parse_grammar(istream& is) {
 			else if (directive == "include") { // %include <file_name>
 				if (params.size() != 2)
 					throw GrammarError("Invalid Directive Parameter Count: " + buf);
+				auto line_bck = line;
+				auto file_bck = file;
 				defines.insert("include");
-				load_grammar(params[1]);
+				load_grammar(params[1], level+1);
 				defines.erase("include");
+				file = file_bck;
+				line = line_bck;
 			}
 			else if (directive == "save_dict") { // %save_dic <file_name>
 				if (params.size() != 2)
 					throw GrammarError("Invalid Directive Parameter Count: " + buf);
 				auto start = std::chrono::system_clock::now();
 				ofstream os(params[1], ios::binary|ios::out);
-				
+				save_suffixes(os, *grammar);
 				//save_templates(os, *grammar);
 				grammar->root->save(os);
 				auto end = std::chrono::system_clock::now();
@@ -143,6 +149,7 @@ void GrammarParser::parse_grammar(istream& is) {
 					throw GrammarError("Invalid Directive Parameter Count: " + buf);
 				auto start = std::chrono::system_clock::now();
 				ifstream is(params[1], ios::binary | ios::in);
+				load_suffixes(is, *grammar);
 				//load_templates(is, *grammar);
 				grammar->root = new TrieNode(is, *grammar);
 				auto end = std::chrono::system_clock::now();
@@ -171,6 +178,10 @@ void GrammarParser::parse_grammar(istream& is) {
 		else if(parse_enabled)
 			parse_rule();
 	}
+
+	if (level)
+		return;
+
 	auto auto_dict_backup = auto_dict;
 	auto_dict = None;
 
@@ -192,11 +203,11 @@ void GrammarParser::parse_grammar(istream& is) {
 	}
 }
 
-void GrammarParser::load_grammar(string fname) {
+void GrammarParser::load_grammar(string fname,int level) {
 	ifstream f(fname);
 	if (!f)
 		throw runtime_error("Cannot open file: " + fname);
-	parse_grammar(f);
+	parse_grammar(f, level);
 }
 
 bool GrammarParser::get_symbol(vector<PreSymbol>& symbols, bool ensure, bool skip_ws) {

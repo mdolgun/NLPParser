@@ -7,6 +7,7 @@ struct GrammarParser {
 	AutoDict auto_dict = None;
 	string buf;
 	size_t pos, line;
+	string file;
 	regex SYMBOL;
 	regex FEAT;
 	regex INTEGER;
@@ -32,8 +33,8 @@ struct GrammarParser {
 	bool get_eol(bool ensure = true);
 	string_view get_rest();
 	bool get_token(const char* token, bool ensure = true, bool skip_ws = true);
-	void parse_grammar(istream& is);
-	void load_grammar(string fname);
+	void parse_grammar(istream& is, int level = 0, int start_line=1);
+	void load_grammar(string fname, int level = 0);
 	bool get_symbol(vector<PreSymbol>& symbols,bool ensure = true, bool skip_ws = true);
 	bool get_expr(string& out, regex& expr, const char* name, bool ensure = true, bool skip_ws = true);
 	int get_integer(bool ensure = true, bool skip_ws = true);

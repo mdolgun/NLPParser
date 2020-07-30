@@ -61,7 +61,10 @@ ostream & Prod::print(ostream& os) const {
 }
 
 ostream& Rule::print(ostream& os) const {
-	return os << *head << " -> " << *left << " : " << *right << " " << *feat;
+	os << *head << " -> " << *left << " : " << *right << " " << *feat;
+	if (check_list)
+		os << *check_list;
+	return os;
 }
 
 string Rule::terminal_prefix() const {
@@ -731,13 +734,15 @@ TreeNodePtr unify_tree(TreeNodePtr node,unordered_set<TreeNode*>* visited) {
 				for (auto&[work_seq, work_feat] : worklist) {
 					vector<tuple<FeatPtr, TreeNodePtr>> parts;
 					partition(sub_node, work_feat, fparam, parts);
+					if (parts.size() == 0)
+						last_error = format("{}={} {}={}", *node->name , *work_feat, *sub_node->name, *sub_node->options[0]->feat_list);
 					for (auto&[par_feat, par_node] : parts) {
 						new_worklist.emplace_back(work_seq, par_feat);
 						get<0>(new_worklist.back()).push_back(par_node);
 					}
 				}
 				if (!new_worklist.size())
-					throw UnifyError(format("Unify {} {}", *node->name, *sub_node->name));
+					throw UnifyError(last_error);
 				worklist = move(new_worklist);
 			}
 			for (auto[work_seq, work_feat] : worklist) {

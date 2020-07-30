@@ -29,6 +29,7 @@ struct PostProcessor : public CharMapper {
 	bool is_cons(char c) { return (char_types[c] & _cons) != 0; }
 	bool is_const(char c) { return (char_types[c] & _const) != 0; }
 	char vowel_type(char c) { return char_types[c] & _vowel_type; }
+	char last_letter = 'e', last_vowel_type = 1;
 /*
 	bool is_vowel(const char* s)
 	{

@@ -2,10 +2,15 @@
 #include "parser.h"
 #include <chrono>
 
+ifstream& UnitTest::get_line(ifstream& is, string& line) {
+	line_num++;
+	getline(is, line);
+	return is;
+}
 string UnitTest::get_lines(ifstream& is, stringstream& ref) {
 	// get all the lines until next line starting with "###<command>", returns the <command> or "" if EOF
 	string line;
-	while (getline(is, line) && line.substr(0, 3) != "###") {
+	while (get_line(is, line) && line.substr(0, 3) != "###") {
 		ref << line << '\n';
 	}
 	if (is)
@@ -38,6 +43,72 @@ vector<string> split_strip(const string& s, char delim) {
 	return result;
 }
 extern Parser* p_parser;
+
+void UnitTest::parse_sent(string sent) {
+	TreeNode* ptree = nullptr, * utree = nullptr, * ttree = nullptr;
+	Parser* parser = p_parser; // CHANGE SOON!!!
+	long long total_parse = 0, total_make = 0, total_unify = 0, total_trans = 0, total_post = 0;
+
+	try {
+		auto start = std::chrono::system_clock::now();
+		parser->parse(sent);
+		auto end = std::chrono::system_clock::now();
+		auto mics_parse = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+		total_parse += mics_parse;
+
+		start = std::chrono::system_clock::now();
+		ptree = parser->make_tree(shared);
+		end = std::chrono::system_clock::now();
+		auto mics_make = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+		total_make += mics_make;
+		//if (dot)
+		//	dot_print(fname + ".parse.dot", ptree, true, false);
+
+		if (debug >= 1)
+			print_tree(cout, ptree, true, true, false);
+
+		start = std::chrono::system_clock::now();
+		utree = unify_tree(ptree, shared);
+		end = std::chrono::system_clock::now();
+		auto mics_unify = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+		total_unify += mics_unify;
+		//if (dot)
+		//	dot_print(fname + ".unify.dot", utree, true, false);
+
+		if (debug >= 1)
+			print_tree(cout, utree, true, true, false);
+
+		start = std::chrono::system_clock::now();
+		ttree = parser->translate_tree(utree, shared);
+		end = std::chrono::system_clock::now();
+		auto mics_trans = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+		total_trans += mics_trans;
+		//if (dot)
+		//	dot_print(fname + ".trans.dot", ttree, false, true);
+		
+		if (debug >= 1)
+			print_tree(cout, ttree, true, true, true);
+		print_tree(cout, ttree, false, false, true);
+		EnumVec results;
+		start = std::chrono::system_clock::now();
+		cout << '#'; convert(cout, ttree, parser, results);
+		end = std::chrono::system_clock::now();
+		auto mics_post = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+		total_post += mics_post;
+
+		cout << results[0].first << nl;
+
+		if (profile >= 2)
+			cout << "  *Parse: " << mics_parse << " Make: " << mics_make << " Unify: " << mics_unify << " Trans: " << mics_trans << " Post: " << mics_post << '\n';
+	}
+	catch (UnifyError& e) {
+		cout << "  *UnifyError: " << e.what() << nl;
+	}
+	catch (ParseError& e) {
+		cout << "  *ParseError: " << e.what() << nl;
+	}
+
+}
 void UnitTest::test_case(string fname) {
 	// loads an executes test cases from file "fname"
 	int case_cnt = 0, success_cnt = 0;
@@ -47,22 +118,59 @@ void UnitTest::test_case(string fname) {
 		return;
 	}
 	long long total_parse = 0, total_make = 0, total_unify = 0, total_trans = 0, total_post = 0;
-	string command;
+	string line;
 	unique_ptr<Parser> parser;
 	TreeNode *ptree = nullptr, *utree = nullptr, *ttree = nullptr;
-	getline(is, command);
+	get_line(is, line);
 	string error;
-	while (!command.empty()) {
-		if (command == "###grammar") {
+	while (!line.empty()) {
+		vector<string> cmd_params;
+		split(cmd_params, line, ' ');
+		string& command = cmd_params[0];
+		if (command == "###load_grammar") {
+			if (cmd_params.size() != 2) {
+				cerr << "Invalid command parameter: " << line;
+				return;
+			}
 			try {
 				stringstream grammar;
-				command = get_lines(is, grammar);
+				int start_line_num = line_num;
+				line = get_lines(is, grammar);
 
 				parser = make_unique<Parser>();
 				GrammarParser gparser(parser.get());
-
+				gparser.file = fname;
 				auto start = std::chrono::system_clock::now();
-				gparser.parse_grammar(grammar);
+				gparser.load_grammar(cmd_params[1]);
+				//gparser.parse_grammar(grammar, 0, start_line_num);
+				auto end = std::chrono::system_clock::now();
+				if (profile >= 1)
+					cout << "ParseGrammar: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << " mics\n";
+
+				p_parser = parser.get(); // quick & dirty solution
+
+				start = std::chrono::system_clock::now();
+				parser->compile();
+				end = std::chrono::system_clock::now();
+				if (profile >= 1)
+					cout << "CompileGrammar: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << " mics\n";
+			}
+			catch (GrammarError& e) {
+				cerr << e.what() << nl;
+				return;
+			}
+		}
+		else if (command == "###grammar") {
+			try {
+				stringstream grammar;
+				int start_line_num = line_num;
+				line = get_lines(is, grammar);
+
+				parser = make_unique<Parser>();
+				GrammarParser gparser(parser.get());
+				gparser.file = fname;
+				auto start = std::chrono::system_clock::now();
+				gparser.parse_grammar(grammar, 0, start_line_num);
 				auto end = std::chrono::system_clock::now();
 				if (profile >= 1)
 					cout << "ParseGrammar: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << " mics\n";
@@ -81,10 +189,32 @@ void UnitTest::test_case(string fname) {
 			}
 			
 		}
+		else if (command == "###interact") {
+			string sent;
+			for (;;) {
+				cout << "Enter Sent> ";
+				getline(cin, sent);
+				rtrim(sent);
+				if (sent.starts_with("%")) {
+					auto params = split_strip(sent, '=');
+					if (params.size() == 2 && params[0] == "%debug") {
+						debug = stoi(params[1]);
+					}
+					else
+						cout << "Error: Invalid Format";
+					continue;
+				}
+				if (!sent.size())
+					break;
+				parse_sent(sent);
+				flush(cout);
+			}
+			return;
+		}
 		else if (command == "###input") {
 			string input;
-			getline(is, input);
-			getline(is, command);
+			get_line(is, input);
+			get_line(is, line);
 			if (debug_mem >= 1)
 				cout << "Parse-begin FeatList count: " << FeatList::count << endl;
 			try {
@@ -108,19 +238,25 @@ void UnitTest::test_case(string fname) {
 				cout << "Parse-end FeatList count: " << FeatList::count << endl;
 		}
 		else if (command == "###test") {
-			string line;
-			while (getline(is, line) && line.substr(0, 3) != "###") {
+			while (get_line(is, line) && line.substr(0, 3) != "###") {
 				ltrim(line);
 				if (line.empty() || line[0] == '#')
 					continue;
 				auto io = split_strip(line, ':');
-				assert(io.size() == 2);
+				if (io.size() != 2) {
+					cerr << "Invalid test sentence: " << line << nl;
+					continue;
+				}
 				auto expects = split_strip(io[1], '|');
-				assert(expects.size() >= 1);
+				if(!expects.size()) {
+					cerr << "Invalid expected sentence: " << line << nl;
+					continue;
+				}
+				cout << io[0] << " : " << io[1] << '\n';
 				case_cnt++;
 
 				try {
-					cout << io[0] << " : " << io[1] << '\n';
+					
 					auto start = std::chrono::system_clock::now();
 					parser->parse(io[0]);
 					auto end = std::chrono::system_clock::now();
@@ -205,22 +341,16 @@ void UnitTest::test_case(string fname) {
 			}
 			if (profile >= 1)
 				cout << "  *Parse: " << total_parse << " Make: " << total_make << " Unify: " << total_unify << " Trans: " << total_trans << " Post: " << total_post << '\n';
-			if (is)
-				command = line;
-			else // eof
-				command = "";
+			if (!is) // eof
+				line = "";
 		}
 		else if (command == "###comment") {
-			string line;
-			while (getline(is, line) && line.substr(0, 3) != "###");
-			if (is)
-				command = line;
-			else // eof
-				command = "";
+			while (get_line(is, line) && line.substr(0, 3) != "###");
+			if (!is) // eof
+				line = "";
 		}
 		else if (command == "###params") {
-			string line;
-			while (getline(is, line) && line.substr(0, 3) != "###") {
+			while (get_line(is, line) && line.substr(0, 3) != "###") {
 				ltrim(line);
 				if (line.empty() || line[0] == '#')
 					continue;
@@ -242,10 +372,8 @@ void UnitTest::test_case(string fname) {
 					dot = bool(stoi(io[1]));
 				}
 			}
-			if (is)
-				command = line;
-			else // eof
-				command = "";
+			if (!is) // eof
+				line = "";
 		}
 		else {
 			stringstream ref, out;
@@ -278,7 +406,7 @@ void UnitTest::test_case(string fname) {
 			else {
 				out << error << nl;
 			}
-			string new_command = get_lines(is, ref);
+			line = get_lines(is, ref);
 			bool result = out.str() == ref.str();
 			cout << command.substr(3) << ": " << (result ? "OK" : "NOK") << nl;
 			if (!result) {
@@ -288,12 +416,12 @@ void UnitTest::test_case(string fname) {
 			else
 				success_cnt++;
 			case_cnt++;
-			command = move(new_command);
 		}
 	}
-	cout << fname << ": " << success_cnt << "/" << case_cnt << nl;
+	cout << fname << ": " << success_cnt << "/" << case_cnt << " (" << (case_cnt ? success_cnt * 100 / case_cnt : 0) << "%)" << nl;
 	case_total += case_cnt;
 	success_total += success_cnt;
+	
 }
 void UnitTest::test_dir(string dirname) {
 	// loads an executes all test cases in a directory with extension ".tst"
@@ -311,7 +439,7 @@ void UnitTest::test_dir(string dirname) {
 		}
 }
 void UnitTest::print_result() {
-	cout << "TOTAL: " << success_total << "/" << case_total << nl;
+	cout << "TOTAL: " << success_total << "/" << case_total << " (" << (case_total ? success_total * 100 / case_total : 0) << "%)" << nl;
 }
 /*
 
@@ -446,6 +574,7 @@ int main(int argc, char* argv[])
 	SetConsoleOutputCP(65001);
 #endif
 	cout.sync_with_stdio(false); // for performance increase
+	std::cout.imbue(std::locale("")); // for thousands separator ","
 	switch (argv[1][1]) {
 		case 't': 
 			if (argc != 3)

@@ -420,17 +420,18 @@ int get_cost(TreeNode* node) {
 TreeNode* Parser::make_trans_tree(int id,FeatParam* fparam,FeatPtr parent_feat) {
 	// make a translated sub tree (i.e. RHS-only subtree) from current id,parent feature,feature parameters
 	TreeNode* node = new TreeNode(&symbol_table.get(id), true);
+	string last_error;
 	for (auto ruleno : ruledict[id]) {
 		Rule* rule = get_rule(ruleno);
 		try {
 			FeatPtr feat_list = rule->feat;
 			if( !unify_feat(feat_list, fparam, parent_feat, true, rule->check_list) )
-				throw UnifyError("UnifyError");
+				throw UnifyError("");
 			OptionNode* option = new OptionNode(rule, feat_list);
 			option->cost = rule->right->cost;
 			for (auto symbol : *rule->right) {
 				if (symbol->nonterminal) {
-					assert(symbol->idx == -1); // a non-referenced nonterminal
+					assert(symbol->idx == -1); // a non-referenced nonterminal TODO: Throw UnifyError
 					TreeNode* sub_node = make_trans_tree(symbol->id, symbol->fparam, feat_list);
 					option->cost += get_cost(sub_node);
 					option->right.push_back(sub_node);
@@ -441,7 +442,7 @@ TreeNode* Parser::make_trans_tree(int id,FeatParam* fparam,FeatPtr parent_feat) 
 					if (symbol->name[0] == '*') {
 						auto it = option->feat_list->find(symbol->name.substr(1));
 						if (it == option->feat_list->end())
-							throw UnifyError(format("Feature not found: {} in {}", symbol->name.substr(1), *option->feat_list));
+							throw UnifyError(format("Feature not found: {} in {} for {}", symbol->name.substr(1), *option->feat_list, rule->head->name));
 						int id = symbol_table.map(it->second);
 						if (id != -1 && symbol_table.nonterminal(id))
 							sub_node = make_trans_tree(id, symbol->fparam, option->feat_list);
@@ -458,11 +459,12 @@ TreeNode* Parser::make_trans_tree(int id,FeatParam* fparam,FeatPtr parent_feat) 
 			if (rule->right->cut)
 				break;
 		}
-		catch (UnifyError&) {
+		catch (UnifyError& e) {
+			last_error = e.what();
 		}
 	}
 	if (!node->options.size())
-		throw UnifyError(format("make_trans_tree {}", symbol_table.get(id)));
+		throw UnifyError(last_error.size() ? last_error : format("make_trans_tree {} for {}", symbol_table.get(id), *parent_feat));
 	return node;
 }
 
@@ -526,7 +528,7 @@ TreeNode* Parser::translate_tree_shared(unordered_map<TreeNode*, vector<TreeNode
 					if (symbol->name[0] == '*') {
 						auto it = option->feat_list->find(symbol->name.substr(1));
 						if (it == option->feat_list->end())
-							throw UnifyError(format("Feature not found: {} in {}", symbol->name.substr(1), *option->feat_list));
+							throw UnifyError(format("Feature not found: {} in {} for {}", symbol->name.substr(1), *option->feat_list, option->rule->head->name));
 						int id = symbol_table.map(it->second);
 						if (id != -1 && symbol_table.nonterminal(id))
 							sub_node = make_trans_tree(id, symbol->fparam, option->feat_list);
@@ -667,6 +669,21 @@ void Parser::compile() {
 	for (int ruleno = 0; ruleno < rules.size(); ruleno++) {
 		ruledict[rules[ruleno]->head->id].push_back(ruleno);
 	}
+	//vector<bool> left_null(n_symbols);
+	//for (int i = 0; i < n_symbols; ++i) {
+	//	left_null[i] = all_of(ruledict[i].begin(), ruledict[i].end(), [this](int ruleno)->bool {return rules[ruleno]->left->size()==0; });
+	//}
+	//for (int i = 0; i < n_symbols; ++i) {
+	//	if (left_null[i]) {
+	//		for (auto ruleno : ruledict[i]) {
+	//			Prod* right = rules[ruleno]->right;
+	//			if (!all_of(right->begin(), right->end(), [&left_null](Symbol* symbol)->bool {return symbol->id ==-1 || left_null[symbol->id]; })) {
+	//				cerr << rules[ruleno] << nl;
+	//				throw GrammarError("Left-only rule has non-left-only child");
+	//			}
+	//		}
+	//	}
+	//}
 	if (debug >= 2) {
 		cout << "RuleDict:\n";
 		print_ruledict(cout);
@@ -893,6 +910,17 @@ int get_word_count(string& s) {
 		return 0;
 	return count(s.begin(), s.end(), ' ') + 1;
 }
+void get_parse_error(ostream& os, vector<string>& words, int pos) {
+	if (pos == words.size()) {
+		os << "Parse is not possible";
+	}
+	else {
+		os << "Parse is not possible at position " << pos << ": ";
+		join(os, words.begin(), words.begin() + pos, " ");
+		os << " [* " << words[pos] << " *] ";
+		join(os, words.begin() + pos + 1, words.end(), " ");
+	}
+}
 
 void Parser::parse(string input_str) {
 	// parses input string using current grammar, throwing ParseError if parsing fails, the parse tree can be later retrieved from "edges"
@@ -1072,7 +1100,9 @@ void Parser::parse(string input_str) {
 					if (act_states[i].size()) {
 						if (debug >= 1)
 							cout << "Parse is not possible at position " << i << nl;
-						throw ParseError( format("Parse is not possible at position {}",i) );
+						ostringstream oss;
+						get_parse_error(oss, input, i);
+						throw ParseError( oss.str());
 					}
 			}
 		}

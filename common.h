@@ -203,6 +203,8 @@ struct TrieNode {
 
 struct GrammarError :public runtime_error {
 public:
+	//GrammarError(const string& file_name,int line_num,int pos,const string& msg) : runtime_error(format())
+	//{}
 	GrammarError(string msg) :runtime_error(msg) {}
 };
 
