@@ -526,14 +526,17 @@ TreeNode* Parser::translate_tree_shared(unordered_map<TreeNode*, vector<TreeNode
 				}
 				else if (!symbol->nonterminal) { // a terminal
 					if (symbol->name[0] == '*') {
-						auto it = option->feat_list->find(symbol->name.substr(1));
-						if (it == option->feat_list->end())
-							throw UnifyError(format("Feature not found: {} in {} for {}", symbol->name.substr(1), *option->feat_list, option->rule->head->name));
+						auto feat_name = symbol->name.substr(1);
+						auto it = new_option->feat_list->find(feat_name);
+						if (it == new_option->feat_list->end())
+							throw UnifyError(format("Feature not found: {} in {} for {}", feat_name, *new_option->feat_list, new_option->rule->head->name));
 						int id = symbol_table.map(it->second);
 						if (id != -1 && symbol_table.nonterminal(id))
-							sub_node = make_trans_tree(id, symbol->fparam, option->feat_list);
+							sub_node = make_trans_tree(id, symbol->fparam, new_option->feat_list);
 						else
-							sub_node = new TreeNode(&it->second, false); // CHECK!!! should we take a copy?
+							sub_node = new TreeNode(new string(it->second), false); // CHECK!!! should we take a copy?
+						/* CHECK!!! We erase the feature? */
+						//new_option->feat_list->erase(feat_name);
 					}
 					else
 						sub_node = new TreeNode(&symbol->name, false);
@@ -579,14 +582,17 @@ TreeNode* Parser::translate_tree(TreeNode* node,FeatParam* fparam,FeatPtr parent
 				}
 				else if (!symbol->nonterminal) { // a terminal
 					if (symbol->name[0] == '*') {
-						auto it = option->feat_list->find(symbol->name.substr(1));
-						if (it == option->feat_list->end())
-							throw UnifyError(format("Feature not found: {} in {}", symbol->name.substr(1), *option->feat_list));
+						auto feat_name = symbol->name.substr(1);
+						auto it = new_option->feat_list->find(feat_name);
+						if (it == new_option->feat_list->end())
+							throw UnifyError(format("Feature not found: {} in {} for {}", feat_name, *new_option->feat_list, new_option->rule->head->name));
 						int id = symbol_table.map(it->second);
 						if (id != -1 && symbol_table.nonterminal(id))
-							sub_node = make_trans_tree(id, symbol->fparam, option->feat_list);
+							sub_node = make_trans_tree(id, symbol->fparam, new_option->feat_list);
 						else
-							sub_node = new TreeNode(&it->second, false); // CHECK!!! should we take a copy?
+							sub_node = new TreeNode(new string(it->second), false); // CHECK!!! should we take a copy?
+						/* CHECK!!! We erase the feature? */
+						//new_option->feat_list->erase(feat_name);
 					}
 					else
 						sub_node = new TreeNode(&symbol->name, false);

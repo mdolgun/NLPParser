@@ -374,6 +374,8 @@ inline void append(string& dst, const string& src) {
 	}
 }
 bool appendix(Node& node, const string& item, Grammar* grammar) {
+	// node: previous word, item: suffix to add
+	// returns true to keep previous word, else false (either +del suffix or empty "-" result for word+suffix combination)
 	string& word = get<string>(node);
 	static string clipboard;
 	if (item == "+copy") {
@@ -408,11 +410,11 @@ bool appendix(Node& node, const string& item, Grammar* grammar) {
 
 void convert(TreeNode* node, vector<Node>& out, Grammar* grammar) {
 	Node* prev_node = out.size() ? &out.back() : nullptr;
-	if (!node->nonterm) {
+	if (!node->nonterm) { // if current node is a terminal
 		if (prev_node && is_suffix(*node->name)){
 			if (holds_alternative<string>(*prev_node)) {
 				if (!appendix(*prev_node, *node->name, grammar)) {
-					out.pop_back();
+					out.pop_back(); // remove previous word
 					prev_node = out.size() ? &out.back() : nullptr;
 				}
 			}
@@ -423,11 +425,11 @@ void convert(TreeNode* node, vector<Node>& out, Grammar* grammar) {
 		else
 			out.emplace_back(*node->name);
 	}
-	else if (node->options.size() == 1)
+	else if (node->options.size() == 1) // if there is a single option discard current TreeNode and convert its child sequence [TreeNode*]
 		for (auto sub_node : node->options[0]->right) 
 			convert(sub_node, out, grammar);
-	else if(prev_node && is_suffix(node)) {
-		if (holds_alternative<string>(*prev_node)) {
+	else if(prev_node && is_suffix(node)) { // there is a previous word, there multiple options, of which at least one starts with a suffix
+		if (holds_alternative<string>(*prev_node)) { // previous item is a word
 			OptionVec new_options;
 			for (auto option : node->options) {
 				vector<Node> new_nodes;
@@ -440,7 +442,7 @@ void convert(TreeNode* node, vector<Node>& out, Grammar* grammar) {
 			//prev_node->emplace<OptionVec>(move(new_options));
 			*prev_node = move(new_options);
 		}
-		else {
+		else { // previous item is a list of alternatives
 			auto& options = get<OptionVec>(*prev_node);
 			OptionVec new_options;
 			for (auto option : node->options) {
