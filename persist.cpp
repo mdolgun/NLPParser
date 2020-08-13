@@ -116,7 +116,7 @@ void FeatList::save(ostream& os) {
 	::save(os, (int)size());
 	for (auto&[name, val] : *this) {
 		::save(os, name);
-		::save(os, val);
+		::save(os, get<string>(val));
 	}
 }
 

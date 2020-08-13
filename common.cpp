@@ -6,6 +6,7 @@ int debug, debug_mem, profile;
 
 int TreeNode::id_count = 0;
 
+
 int FeatList::count = 0;
 ostream& FeatList::print(ostream& os) const {
 	if (empty())
@@ -111,6 +112,15 @@ void Rule::resolve_references() {
 		auto p = find_if(left->begin(), left->end(), [&rsymbol](auto lsymbol) {return lsymbol->name == rsymbol->name; }); // find the first symbol on the left, where it matches the right symbol
 		if (p != left->end()) {
 			rsymbol->idx = p - left->begin();
+		}
+	}
+	for (auto& [name, val] : *feat) {
+		if (get<string>(val)[0] == '*') {
+			auto nt_name = get<string>(val).substr(1);
+			auto p = find_if(left->begin(), left->end(), [&nt_name](auto lsymbol) {return lsymbol->name == nt_name; }); // find the first symbol on the left, where it matches the feat_name
+			if (p != left->end()) {
+				val = p - left->begin();
+			}
 		}
 	}
 }
@@ -293,7 +303,7 @@ void print_tree(ostream& os, TreeNode* tree, bool indented, bool extended, bool 
 	prints a tree in formatted way into an outstream
 	indented=true, writes as single line, otherwise multiple indented lines
 	extended=true print extra information, like features and rule numbers
-	right=true print right branches, right=false converts left branches
+	right=true print right branches, right=false prints left branches
 	*/
 	if (indented)
 		print_tree(os, tree, 0, 4, extended, right);
@@ -593,7 +603,7 @@ bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList
 				if (!down) { // up-propagation
 					auto sit = src->find(name);
 					if (sit != src->end()) { // if src has the param feat
-						if (sit->second != val) { // if param and src values doesn't match, unification fails
+						if (get<string>(sit->second) != val) { // if param and src values doesn't match, unification fails
 							if (debug >= 2)
 								cout << '*' << nl;
 							return false;
@@ -604,7 +614,7 @@ bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList
 				else { // down-propagation
 					auto dit = dst->find(name);
 					if (dit != dst->end()) { // if dst has the param feat
-						if (dit->second != val) { // if param and dst values doesn't match, unification fails
+						if (get<string>(dit->second) != val) { // if param and dst values doesn't match, unification fails
 							if (debug >= 2)
 								cout << '*' << nl;
 							return false;
@@ -624,7 +634,8 @@ bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList
 		}
 	}
 	if (check_list) {
-		for (auto& [name, val] : *check_list) {
+		for (auto& [name, val1] : *check_list) {
+			string& val = get<string>(val1);
 			auto it = dst->find(name);
 			if (val == "!") {
 				if (it != dst->end())
@@ -635,11 +646,15 @@ bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList
 					return false;
 			}
 			else if (val[0] == '!') {
-				if (it == dst->end() || val.compare(1, string::npos, it->second) == 0)
+				if (it == dst->end() || !holds_alternative<string>(it->second))
+					return false;
+				if (val.compare(1, string::npos, get<string>(it->second)) == 0)
 					return false;
 			}
 			else if (val[0] == '?') {
-				if (it == dst->end() || val.compare(1, string::npos, it->second) != 0)
+				if (it == dst->end() || !holds_alternative<string>(it->second))
+					return false;
+				if (val.compare(1, string::npos, get<string>(it->second)) != 0)
 					return false;
 			}
 		}

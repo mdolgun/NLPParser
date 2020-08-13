@@ -44,12 +44,28 @@ public:
 	void save(ostream& os);
 };
 
-struct FeatList : public map<string, string> {
+struct TreeNode;
+using FeatVal = variant<string, int, TreeNode*>;
+inline ostream& operator<<(ostream& os, const FeatVal& val) {
+	if (holds_alternative<string>(val))
+		os << get<string>(val);
+	else if (holds_alternative<int>(val))
+		os << '<' << get<int>(val) << '>';
+	else
+		os << '*';
+	return os;
+}
+//bool operator==(const FeatVal& left, const string& right) {
+//	if (holds_alternative<string>(left))
+//		return get<string>(left)==right;
+//	return false;
+//}
+struct FeatList : public map<string, FeatVal> {
 	static int count;
 	FeatList() {
 		count++;
 	}
-	FeatList(const FeatList& other) : map<string, string>(other) {
+	FeatList(const FeatList& other) : map<string, FeatVal>(other) {
 		count++;
 	}
 	~FeatList() {

@@ -331,9 +331,17 @@ TreeNode* Parser::make_tree_shared(unordered_map<tuple<int,int,int>,TreeNode*>&v
 		return node;
 
 	for (auto& [rule, edge_seq] : edges[edge]) {
-		OptionNode* option = new OptionNode(rule, rule->feat);
+		bool has_reference = any_of(rule->feat->begin(), rule->feat->end(), [](auto& entry) { return holds_alternative<int>(entry.second); }); // if any of entries a reference feature
+		OptionNode* option = new OptionNode(rule, has_reference ? make_shared<FeatList>(*rule->feat) : rule->feat);
+
 		for (auto sub_edge : edge_seq)
 			option->left.push_back(make_tree_shared(visited, sub_edge));
+
+		for (auto& [name, val] : *option->feat_list) {
+			if (holds_alternative<int>(val)) {
+				val = option->left.at(get<int>(val)); // replace reference feature index->pointer
+			}
+		}
 		node->options.push_back(option);
 	}
 	
@@ -355,9 +363,16 @@ TreeNode* Parser::make_tree(Edge& edge) {
 	if (!node->nonterm) // if terminal no subtree exists under it
 		return node;
 	for (auto&[rule, edge_seq] : edges[edge]) {
-		OptionNode* option = new OptionNode(rule, rule->feat);
+		bool has_reference = any_of(rule->feat->begin(), rule->feat->end(), [](auto& entry) { return holds_alternative<int>(entry.second); }); // if any of entries a reference feature
+		OptionNode* option = new OptionNode(rule, has_reference ? make_shared<FeatList>(*rule->feat) : rule->feat);
 		for (auto sub_edge : edge_seq)
 			option->left.push_back(make_tree(sub_edge));
+
+		for (auto& [name, val] : *option->feat_list) {
+			if (holds_alternative<int>(val)) { 
+				val = option->left.at(get<int>(val)); // replace reference feature index->pointer
+			}
+		}
 		node->options.push_back(option);
 	}
 	return node;
@@ -417,7 +432,7 @@ int get_cost(TreeNode* node) {
 	return cost;
 }
 
-TreeNode* Parser::make_trans_tree(int id,FeatParam* fparam,FeatPtr parent_feat) {
+TreeNode* Parser::make_trans_tree(int id,FeatParam* fparam,FeatPtr parent_feat, unordered_map<TreeNode*, vector<TreeNode*>>* visited) {
 	// make a translated sub tree (i.e. RHS-only subtree) from current id,parent feature,feature parameters
 	TreeNode* node = new TreeNode(&symbol_table.get(id), true);
 	string last_error;
@@ -432,7 +447,7 @@ TreeNode* Parser::make_trans_tree(int id,FeatParam* fparam,FeatPtr parent_feat) 
 			for (auto symbol : *rule->right) {
 				if (symbol->nonterminal) {
 					assert(symbol->idx == -1); // a non-referenced nonterminal TODO: Throw UnifyError
-					TreeNode* sub_node = make_trans_tree(symbol->id, symbol->fparam, feat_list);
+					TreeNode* sub_node = make_trans_tree(symbol->id, symbol->fparam, feat_list, visited);
 					option->cost += get_cost(sub_node);
 					option->right.push_back(sub_node);
 				}
@@ -442,12 +457,20 @@ TreeNode* Parser::make_trans_tree(int id,FeatParam* fparam,FeatPtr parent_feat) 
 					if (symbol->name[0] == '*') {
 						auto it = option->feat_list->find(symbol->name.substr(1));
 						if (it == option->feat_list->end())
-							throw UnifyError(format("Feature not found: {} in {} for {}", symbol->name.substr(1), *option->feat_list, rule->head->name));
-						int id = symbol_table.map(it->second);
-						if (id != -1 && symbol_table.nonterminal(id))
-							sub_node = make_trans_tree(id, symbol->fparam, option->feat_list);
+							throw UnifyError(format("make_trans_tree feature not found: {} in {} for {}", symbol->name.substr(1), *option->feat_list, rule->head->name));
+						if (holds_alternative<string>(it->second)) {
+							string& val = get<string>(it->second);
+							int id = symbol_table.map(val);
+							if (id != -1 && symbol_table.nonterminal(id))
+								sub_node = make_trans_tree(id, symbol->fparam, option->feat_list, visited);
+							else
+								sub_node = new TreeNode(new string(val), false); // CHECK!!! should we take a copy?
+						}
 						else
-							sub_node = new TreeNode(&it->second, false); // CHECK!!! should we take a copy?
+							if (visited)
+								sub_node = translate_tree_shared(*visited, get<TreeNode*>(it->second), symbol->fparam, option->feat_list);
+							else
+								sub_node = translate_tree(get<TreeNode*>(it->second), symbol->fparam, option->feat_list);
 					}
 					else
 						sub_node = new TreeNode(&symbol->name, symbol->nonterminal);
@@ -492,12 +515,16 @@ TreeNode* Parser::translate_tree_shared(unordered_map<TreeNode*, vector<TreeNode
 	}
 	vector<TreeNode*>& node_vec = it->second;
 
+	assert(node->options.size());
 	FeatPred feat_pred(node->options.size());
 	for (int i = 0; i < node->options.size(); ++i) {
 		FeatPtr feat = node->options[i]->feat_list;
 		if (!unify_feat(feat, fparam, parent_feat, true, node->options[i]->rule->check_list))
 			continue;
 		feat_pred.feat_vec.emplace_back(move(feat), i);
+	}
+	if (feat_pred.feat_vec.size() == 0) {
+		throw UnifyError(format("translate_tree_shared {}{} vs {}{}", *node->name, *parent_feat, node->options[0]->rule->head->name, *node->options[0]->feat_list));
 	}
 
 	auto node_it = find_if(node_vec.begin(), node_vec.end(), feat_pred);
@@ -529,20 +556,23 @@ TreeNode* Parser::translate_tree_shared(unordered_map<TreeNode*, vector<TreeNode
 						auto feat_name = symbol->name.substr(1);
 						auto it = new_option->feat_list->find(feat_name);
 						if (it == new_option->feat_list->end())
-							throw UnifyError(format("Feature not found: {} in {} for {}", feat_name, *new_option->feat_list, new_option->rule->head->name));
-						int id = symbol_table.map(it->second);
-						if (id != -1 && symbol_table.nonterminal(id))
-							sub_node = make_trans_tree(id, symbol->fparam, new_option->feat_list);
+							throw UnifyError(format("translate_tree_shared feature not found: {} in {} for {}", feat_name, *new_option->feat_list, new_option->rule->head->name));
+						if (holds_alternative<string>(it->second)) {
+							string& val = get<string>(it->second);
+							int id = symbol_table.map(val);
+							if (id != -1 && symbol_table.nonterminal(id))
+								sub_node = make_trans_tree(id, symbol->fparam, option->feat_list, &visited);
+							else
+								sub_node = new TreeNode(new string(val), false); // CHECK!!! should we take a copy?
+						}
 						else
-							sub_node = new TreeNode(new string(it->second), false); // CHECK!!! should we take a copy?
-						/* CHECK!!! We erase the feature? */
-						//new_option->feat_list->erase(feat_name);
+							sub_node = translate_tree_shared(visited, get<TreeNode*>(it->second), symbol->fparam, option->feat_list);
 					}
 					else
 						sub_node = new TreeNode(&symbol->name, false);
 				}
 				else { // a non-referenced non-terminal
-					sub_node = make_trans_tree(symbol->id, symbol->fparam, option->feat_list);
+					sub_node = make_trans_tree(symbol->id, symbol->fparam, option->feat_list, &visited);
 				}
 				option->cost += get_cost(sub_node);
 				option->right.push_back(sub_node);
@@ -586,13 +616,16 @@ TreeNode* Parser::translate_tree(TreeNode* node,FeatParam* fparam,FeatPtr parent
 						auto it = new_option->feat_list->find(feat_name);
 						if (it == new_option->feat_list->end())
 							throw UnifyError(format("Feature not found: {} in {} for {}", feat_name, *new_option->feat_list, new_option->rule->head->name));
-						int id = symbol_table.map(it->second);
-						if (id != -1 && symbol_table.nonterminal(id))
-							sub_node = make_trans_tree(id, symbol->fparam, new_option->feat_list);
+						if (holds_alternative<string>(it->second)) {
+							string& val = get<string>(it->second);
+							int id = symbol_table.map(val);
+							if (id != -1 && symbol_table.nonterminal(id))
+								sub_node = make_trans_tree(id, symbol->fparam, option->feat_list, nullptr);
+							else
+								sub_node = new TreeNode(new string(val), false); // CHECK!!! should we take a copy?
+						}
 						else
-							sub_node = new TreeNode(new string(it->second), false); // CHECK!!! should we take a copy?
-						/* CHECK!!! We erase the feature? */
-						//new_option->feat_list->erase(feat_name);
+							sub_node = translate_tree(get<TreeNode*>(it->second), symbol->fparam, new_option->feat_list);
 					}
 					else
 						sub_node = new TreeNode(&symbol->name, false);
@@ -600,7 +633,7 @@ TreeNode* Parser::translate_tree(TreeNode* node,FeatParam* fparam,FeatPtr parent
 				else { // a non-referenced non-terminal
 					//if (!unify_feat(new_option->feat_list, fparam, parent_feat, true))
 					//	throw UnifyError("UnifyError");
-					sub_node = make_trans_tree(symbol->id, symbol->fparam, new_option->feat_list);
+					sub_node = make_trans_tree(symbol->id, symbol->fparam, new_option->feat_list, nullptr);
 				}
 				new_option->cost += get_cost(sub_node);
 				new_option->right.push_back(sub_node);

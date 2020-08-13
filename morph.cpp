@@ -225,29 +225,29 @@ string PostProcessor::process(string s) {
 					c = out.back();
 					out.pop_back();
 					switch (c) {
-					case 'k':
-						if (out.size() >= 1 && out.back() == 'n')
-							out.push_back('g');
-						else
+						case 'k':
+							if (out.size() >= 1 && out.back() == 'n')
+								out.push_back('g');
+							else
+								out.push_back('G');
+							break;
+						case 'g':
 							out.push_back('G');
-						break;
-					case 'g':
-						out.push_back('G');
-						break;
-					case 'p':
-						out.push_back('b');
-						break;
-					case 't':
-						out.push_back('d');
-						break;
-					case 'C':
-						out.push_back('c');
-						break;
-					case 'y':
-						out.push_back('y');
+							break;
+						case 'p':
+							out.push_back('b');
+							break;
+						case 't':
+							out.push_back('d');
+							break;
+						case 'C':
+							out.push_back('c');
+							break;
+						case 'y':
+							out.push_back('y');
 					}
 				}
-				else if (out.back() == 'y')
+				else if (out.back() == 'y' && (in[1] == 0 || in[1] == ' ' || is_vowel(in[1])))
 					out.pop_back();
 				break;
 			case 'H':
