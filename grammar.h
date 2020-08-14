@@ -42,8 +42,8 @@ struct GrammarParser {
 	bool get_feat(string& out, bool ensure = true, bool skip_ws = true);
 	bool get_char_list(string& out, const char* char_list, bool ensure = true, bool skip_ws = true);
 	void parse_feat(FeatList* feat_list,FeatList*& check_list);
-	void parse_fparam(FeatParam* fparam_list);
-	FeatParam* parse_fparam_list();
+	void parse_fparam(FeatParam& fparam_list);
+	void parse_fparam_list(FeatParam& fparam_list);
 	void parse_feat_list(FeatPtr&,FeatList*&);
 	void parse_prod(vector<PreProd>& prods, const string& macro_name);
 	void create_rule(PreSymbol* head, PreProd* left, PreProd* right, FeatPtr& feat_list, FeatList* check_list,int macro_idx = -1);

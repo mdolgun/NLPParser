@@ -25,11 +25,17 @@ ostream& FeatList::print(ostream& os) const {
 }
 
 ostream& FeatParam::print(ostream& os) const {
-	if (empty())
+	if (param_type == FeatParamType::all)
+		return os;
+	if (params->empty())
 		return os << "()";
 	os << "(";
+	if (param_type == FeatParamType::with_params)
+		os << "+,";
+	else if (param_type == FeatParamType::without_params)
+		os << "-,";
 	bool flag = false;
-	for (const auto& feat : *this) {
+	for (const auto& feat : *params) {
 		if (flag)
 			os << ",";
 		else
@@ -43,12 +49,30 @@ ostream& FeatParam::print(ostream& os) const {
 	return os;
 }
 
+//ostream& FeatParam::print(ostream& os) const {
+//	if (empty())
+//		return os << "()";
+//	os << "(";
+//	bool flag = false;
+//	for (const auto& feat : *this) {
+//		if (flag)
+//			os << ",";
+//		else
+//			flag = true;
+//		os << feat.first;
+//		if (!feat.second.empty()) {
+//			os << "=" << feat.second;
+//		}
+//	}
+//	os << ")";
+//	return os;
+//}
+
 ostream& Symbol::print(ostream& os) const {
 	os << name;
 	if (idx != -1)
 		os << '<' << idx << '>';
-	if (fparam)
-		fparam->print(os);
+	fparam.print(os);
 	return os;
 }
 
@@ -525,7 +549,7 @@ void convert(ostream& os, TreeNode* node, Grammar* grammar,EnumVec& enums) {
 	sort(enums.begin(), enums.end(), [](pair<string, int>& a, pair<string, int>& b) { return a.second < b.second; });
 }
 
-bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList> src, bool down, FeatList* check_list) {
+bool unify_feat(shared_ptr<FeatList>& dst, const FeatParam& fparam, shared_ptr<FeatList> src, bool down, FeatList* check_list) {
 	/* unification of "src" features into "dst" features, using filtering of "param", if unification fails returns nullptr
 	if param is None, src is directly unified into dst
 	otherwise param contains a pre - condition dict and a filter set,
@@ -533,17 +557,12 @@ bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList
 	returns true if unification is successfull else false
 	*/
 	if (debug >= 2) {
-		cout << (down ? "D:" : "U:");
-		dst->print(cout);
-		cout << ",";
-		if (param)
-			param->print(cout);
-		cout << ",";
-		src->print(cout);
-		cout << "->";
+		cout << (down ? "D:" : "U:") << *dst << "," << fparam << "," << *src << "->";
 	}
-	if (param == nullptr) {
+	if (fparam.param_type == FeatParamType::all || fparam.param_type == FeatParamType::without_params) {
 		for (auto&[name, val] : *src) {
+			if (fparam.param_type == FeatParamType::without_params && fparam.params->count(name) != 0)
+				continue;
 			auto it = dst->find(name);
 			if (it != dst->end()) {
 				if (it->second != val) {
@@ -564,7 +583,7 @@ bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList
 		}
 	}
 	else {
-		for (auto [name, val] : *param) {
+		for (auto [name, val] : *fparam.params) {
 			if (val.empty() || val[0]=='*') { // empty parameter or renamed parameter, pass-through the src values into dst
 				string src_name, dst_name;
 				if (val.empty())
@@ -632,6 +651,29 @@ bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList
 				}
 			}
 		}
+		if(fparam.param_type == FeatParamType::with_params) { 
+			for (auto& [name, val] : *src) {
+				if (fparam.params->count(name) != 0)
+					continue;
+				auto it = dst->find(name);
+				if (it != dst->end()) {
+					if (it->second != val) {
+						if (debug >= 2)
+							cout << '*' << nl;
+						return false;
+						//throw UnifyError(format("{}: {} {}", name, it->second, val));
+					}
+				}
+				else {
+					if (dst.use_count() > 1) {
+						if (debug >= 2)
+							cout << '+' << dst.use_count();
+						dst = make_shared<FeatList>(*dst);
+					}
+					(*dst)[name] = val;
+				}
+			}
+		}
 	}
 	if (check_list) {
 		for (auto& [name, val1] : *check_list) {
@@ -685,7 +727,7 @@ struct PartitionPred {
 		return is_equal(feat, get<0>(other));
 	}
 };
-void partition(TreeNodePtr node,FeatPtr parent_feat, FeatParam* fparam, vector<tuple<FeatPtr, TreeNodePtr>>& parts) {
+void partition(TreeNodePtr node,FeatPtr parent_feat, FeatParam& fparam, vector<tuple<FeatPtr, TreeNodePtr>>& parts) {
 	// For given node, partitions pairs of options/combined features 
 	vector<tuple<FeatPtr, OptionNodePtr>> feats;
 	feats.reserve(node->options.size());
@@ -745,7 +787,7 @@ TreeNodePtr unify_tree(TreeNodePtr node,unordered_set<TreeNode*>* visited) {
 					}
 					continue;
 				}
-				FeatParam* fparam = (*body)[rulepos]->fparam;
+				FeatParam& fparam = (*body)[rulepos]->fparam;
 				sub_node = unify_tree(sub_node, visited);
 				vector<tuple<vector<TreeNodePtr>, FeatPtr>> new_worklist;
 				for (auto&[work_seq, work_feat] : worklist) {

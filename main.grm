@@ -4,7 +4,7 @@ S -> AdvCl() SentNorm       : AdvCl() SentNorm      [-gap]
 S -> SentNorm AdvCl()       : AdvCl() SentNorm      [-gap]
 S -> SentNorm               : SentNorm              [-gap]
 S -> SentInv                : SentInv               [+quest,-gap]
-S -> RelPron SentInv        : SentInv               [+gap]
+S -> WhCase() SentInv       : SentInv                [+gap,gapw=*WhCase]
 S -> RelAdv SentInv         : SentInv               [-gap,reladv=*RelAdv]
 S -> SentImp                : SentImp               [-gap]
 S -> NP'                    : NP'
@@ -119,7 +119,6 @@ BaseGerund -> Ving              : Ving PredBe
 StModal -> BaseModal            : BaseModal ModalTense
 StModal -> be able to V         : V NegAbil AbilTense Quest PresPast
 StModal -> be able to be Pred   : Pred ol NegAbil AbilTense Quest PresPast
-#StModal -> be PredVerb          : PredVerb ModalTense
 StModal -> like to V            : V -mAk iste PresTense   [modal=will,tense=past]
 StModal -> like Obj'            : Obj' Acc iste PresTense [modal=will,tense=past]
 
@@ -270,11 +269,11 @@ PredTense -> : olur olmaz             [conn=?ir_mez]
 ObjObj -> Obj-1() Obj-2() : Obj-1(case=*case1) Obj-2(case=*case2)     [-gap]
 ObjObj -> Obj-1()         : Obj-1(case=*case1) GapW(gapw,case=*case2) [+gap]
 
-Obj' -> Obj(onum,oper)   : Obj(case)  [-gap]
-Obj' ->                  : GapW       [+gap]
+Obj' -> Obj(onum,oper)   : Obj(case)       [-gap]
+Obj' ->                  : GapW(gapw,case) [+gap]
 
-GapW -> :                 [!gapw]
-GapW -> : *gapw  ObjCase  [?gapw]
+GapW -> :        [!gapw]
+GapW -> : *gapw  [?gapw]
 
 ObjInf -> Obj(oper,onum) Not to BaseModal(gap) : Obj(case) BaseModal(gapw) Neg -mA ObjPoss 
 ObjInf -> Not to BaseModal(-gap)               : GapW(gapw,case) BaseModal() Neg -mA ObjPoss(oper=3,onum=sing) [+gap]
@@ -324,20 +323,29 @@ SWhether' -> whether to V() : V() +copy -YHp +paste -mAdHk? SubjPoss
 
 SThat' -> That SentNorm(gap) : SentNorm(gapw,conn=dik,scase=+in)
 
-Wh -> RelPron SentNorm(+gap) : SentNorm(gapw,conn=dik,scase=+in)
+Wh -> WhCase SentNorm(+gap) : SentNorm(gapw,conn=dik,scase=+in)  [gapw=*WhCase]
 Wh -> what to V() : ne V(+gap) -mA SubjPoss gerektiğiN
 Wh -> where to V() : nerede V() -mA SubjPoss gerektiğiN
 Wh -> how to V() : nasıl V() -mA SubjPoss gerektiğiN
 Wh -> why to V() : niçin V() -mA SubjPoss gerektiğiN 
 Wh -> RelAdv SentNorm() : RelAdv SentNorm(conn=dik)
 
-RelPron -> what   [gapw=ne]
-RelPron -> who    [gapw=kim]
-RelPron -> whom   [gapw=kim]
-
 RelAdv -> how    : nasıl
 RelAdv -> where  : nerede
 RelAdv -> why    : niçin
+
+WhCase -> WhP : WhP *case
+
+WhP -> what : ney?
+WhP -> which : hangisiN [+def]
+WhP -> whom | who : kim [+def]
+WhP -> which N : hangi N [+def]
+WhP -> whose N : kimin N -ZHN [+def]
+WhP -> how many NPlur : kaç NPlur
+WhP -> how much NSing : ne kadar NSing
+WhP -> how Adj : ne kadar Adj 
+WhP -> how old : kaç yaşında
+WhP -> what N : ne N
 
 Obj -> NP'(num=*onum,def) : NP'() ObjCase   [oper=3]
 Obj -> ObjPron   :                   [+def,case=?+in]
@@ -370,8 +378,8 @@ NP1 -> OfDet OfNG : OfDet OfNG
 NP1 -> DG AG OfUnit of OfNG() : DG AG Bir OfUnit OfNG()
 NP1 -> DG OfNG : DG OfNG
 NP1 -> half NP(-nodef) : NP() +in_nopro yarısı
-NP1 -> DetPron : DetPron NGSuf [+ng]
-NP1 -> DetPron1 : DetPron1
+NP1 -> DetPron : DetPron NGSuf [+ng,+def]
+NP1 -> DetPron1 : DetPron1 [+def]
 
 DetPron1 -> this  : buN
 DetPron1 -> that  : oN
@@ -645,29 +653,29 @@ Pers3 -> : -yHz     [num=plur,per=1]
 Pers3 -> : -zsHnHz  [num=plur,per=2]
 Pers3 -> : -zlAr    [num=plur,per=3]
 
-V -> V'(+gap) PPS(-gap) : PPS() V'                  [+gap]
-V -> V'(-gap) PPS(+gap) : PPS(gapw) V'              [+gap]
-V -> V'(-gap) PPS(-gap) : PPS() TRelAdv V'          [-gap]
+V -> V'(+,+gap) PPS(-gap) : PPS() V'                  [+gap]
+V -> V'(+,-gap) PPS(+gap) : PPS(gapw) V'              [+gap]
+V -> V'(+,-gap) PPS(-gap) : PPS() TRelAdv V'          [-gap]
 
-Vs -> Vs'(+gap) PPS(-gap) : PPS() Vs'               [+gap]
-Vs -> Vs'(-gap) PPS(+gap) : PPS(gapw) Vs'           [+gap]
-Vs -> Vs'(-gap) PPS(-gap) : PPS() TRelAdv Vs'       [-gap]
+Vs -> Vs'(+,+gap) PPS(-gap) : PPS() Vs'               [+gap]
+Vs -> Vs'(+,-gap) PPS(+gap) : PPS(gapw) Vs'           [+gap]
+Vs -> Vs'(+,-gap) PPS(-gap) : PPS() TRelAdv Vs'       [-gap]
 
-Ving -> Ving'(+gap) PPS(-gap) : PPS() Ving'         [+gap]
-Ving -> Ving'(-gap) PPS(+gap) : PPS(gapw) Ving'     [+gap]
-Ving -> Ving'(-gap) PPS(-gap) : PPS() TRelAdv Ving' [-gap]
+Ving -> Ving'(+,+gap) PPS(-gap) : PPS() Ving'         [+gap]
+Ving -> Ving'(+,-gap) PPS(+gap) : PPS(gapw) Ving'     [+gap]
+Ving -> Ving'(+,-gap) PPS(-gap) : PPS() TRelAdv Ving' [-gap]
 
-Ved -> Ved'(+gap) PPS(-gap) : PPS() Ved'            [+gap]
-Ved -> Ved'(-gap) PPS(+gap) : PPS(gapw) Ved'        [+gap]
-Ved -> Ved'(-gap) PPS(-gap) : PPS() TRelAdv Ved'    [-gap]
+Ved -> Ved'(+,+gap) PPS(-gap) : PPS() Ved'            [+gap]
+Ved -> Ved'(+,-gap) PPS(+gap) : PPS(gapw) Ved'        [+gap]
+Ved -> Ved'(+,-gap) PPS(-gap) : PPS() TRelAdv Ved'    [-gap]
 
-Ven -> Ven'(+gap) PPS(-gap) : PPS() Ven'            [+gap]
-Ven -> Ven'(-gap) PPS(+gap) : PPS(gapw) Ven'        [+gap]
-Ven -> Ven'(-gap) PPS(-gap) : PPS() TRelAdv Ven'    [-gap]
+Ven -> Ven'(+,+gap) PPS(-gap) : PPS() Ven'            [+gap]
+Ven -> Ven'(+,-gap) PPS(+gap) : PPS(gapw) Ven'        [+gap]
+Ven -> Ven'(+,-gap) PPS(-gap) : PPS() TRelAdv Ven'    [-gap]
 
-Vpass -> Vpass'(+gap,scase) By() PPS(-gap) : PPS() By() TRelAdv Vpass'(gapw) [+gap]
-Vpass -> Vpass'(-gap,scase) By() PPS(+gap) : PPS(gapw) By() TRelAdv Vpass'() [+gap]
-Vpass -> Vpass'(-gap,scase) By() PPS(-gap) : PPS() By() TRelAdv Vpass'()     [-gap]
+Vpass -> Vpass'(+,+gap) By() PPS(-gap) : PPS() By() TRelAdv Vpass'(gapw) [+gap]
+Vpass -> Vpass'(+,-gap) By() PPS(+gap) : PPS(gapw) By() TRelAdv Vpass'() [+gap]
+Vpass -> Vpass'(+,-gap) By() PPS(-gap) : PPS() By() TRelAdv Vpass'()     [-gap]
 
 By -> by PPObj : PPObj taraf ObjPoss -dAn
 By ->

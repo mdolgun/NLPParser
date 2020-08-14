@@ -81,21 +81,27 @@ inline ostream& operator<<(ostream& os, const FeatList& obj) {
 using FeatPtr = shared_ptr<FeatList>;
 using FeatRef = shared_ptr<FeatList>&;
 
-
-struct FeatParam : public map<string, string> {
+enum class FeatParamType : unsigned char {
+	all,			// All features are passed through								e.g. V -> PPS
+	only_params,	// Only parameters are passed through							e.g. V -> PPS(+gap) PPS(gap)
+	with_params,	// Parameters and remaining features are passed through			e.g. V -> PPS(+, +gap) 		Note: PPS(+, gap) == PPS
+	without_params	// Except parameters, remaining features are passed through		e.g. V -> PPS(-, gap)		Note: PPS(-, +gap) == PPS
+};
+struct FeatParam {
+	map<string, string>* params = nullptr;
+	FeatParamType param_type = FeatParamType::all;
 	FeatParam() = default;
-	FeatParam(istream& is,int size);
+	FeatParam(istream& is);
 	void save(ostream& os);
 	ostream& print(ostream& os) const;
 };
+
 inline ostream& operator<<(ostream& os, const FeatParam& obj) {
 	return obj.print(os);
 }
-void split(vector<string>& result, const string &s, char delim);
-
 struct PreSymbol {
 	string name;
-	FeatParam* fparam = nullptr;
+	FeatParam fparam;
 	const vector<string>* macro_values = nullptr;
 	bool macro_suffix = false;
 	bool nonterminal = true;
@@ -109,7 +115,7 @@ struct PreProd : public vector<PreSymbol> {
 };
 
 struct Symbol {
-	FeatParam* fparam = nullptr; // feature parameter, nullptr if there is no parameter
+	FeatParam fparam;
 	string name; // name of the symbol (for debugging/display purposes)
 	int id = -1; // unique id of the nonterminal/terminal (which can be referenced from SymbolTable)
 	int idx = -1; // reference index for RHS, shows position of same NT on LHS. e.g.  "VP -> V Obj : Obj V" , Obj(RHS) has ref 1, V(RHS) has ref 0
@@ -291,7 +297,7 @@ vector<string> enumerate(Grammar* grammar, TreeNode* node, bool right = true);
 void print_tree(ostream& os, TreeNode* tree, bool indented, bool extended, bool right);
 void convert(ostream& os, TreeNode* node, Grammar* grammar, EnumVec& enums);
 TreeNode* unify_tree(TreeNode* parent_node, bool shared=false);
-bool unify_feat(shared_ptr<FeatList>& dst, FeatParam* param, shared_ptr<FeatList> src, bool down, FeatList* check_list=nullptr);
+bool unify_feat(shared_ptr<FeatList>& dst, const FeatParam& param, shared_ptr<FeatList> src, bool down, FeatList* check_list=nullptr);
 void dot_print(ostream& os, TreeNode* node, bool left = true, bool right = false);
 void dot_print(string fname, TreeNode* node, bool left = true, bool right = false);
 void search_trie_prefix(TrieNode* node, const char* str, vector<pair<int, Rule*>>& result);

@@ -66,10 +66,10 @@ struct Parser : public Grammar{
 	TreeNode* make_tree_shared(unordered_map<tuple<int, int, int>, TreeNode*>&visited, Edge& edge);
 	TreeNode* make_tree(Edge& parent_edge);
 	TreeNode* make_tree(bool shared = false);
-	TreeNode* make_trans_tree(int id, FeatParam* fparam, FeatPtr parent_feat, unordered_map<TreeNode*, vector<TreeNode*>>* visited);
-	TreeNode* translate_tree_shared(unordered_map<TreeNode*, vector<TreeNode*>>& visited, TreeNode* parent_node, FeatParam* fparam, FeatPtr parent_feat);
+	TreeNode* make_trans_tree(int id, const FeatParam& fparam, FeatPtr parent_feat, unordered_map<TreeNode*, vector<TreeNode*>>* visited);
+	TreeNode* translate_tree_shared(unordered_map<TreeNode*, vector<TreeNode*>>& visited, TreeNode* parent_node, const FeatParam& fparam, FeatPtr parent_feat);
 	TreeNode* translate_tree(TreeNode* parent_node, bool shared = false);
-	TreeNode* translate_tree(TreeNode* parent_node, FeatParam* fparam, FeatPtr parent_feat);
+	TreeNode* translate_tree(TreeNode* parent_node, const FeatParam& fparam, FeatPtr parent_feat);
 };
 
 struct UnitTest {

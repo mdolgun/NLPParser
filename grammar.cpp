@@ -313,7 +313,7 @@ void GrammarParser::parse_feat(FeatList* feat_list, FeatList*& check_list) {
 	(*feat_list)[name] = value;
 }
 
-void GrammarParser::parse_fparam(FeatParam* fparam_list) {
+void GrammarParser::parse_fparam(FeatParam& fparam_list) {
 	string name, value;
 	if (get_char_list(value, "+-", false)) {
 		get_feat(name, true, false);
@@ -323,21 +323,25 @@ void GrammarParser::parse_fparam(FeatParam* fparam_list) {
 		if (get_token("=", false))
 			get_feat(value);
 	}
-	(*fparam_list)[name] = value;
+	(*fparam_list.params)[name] = value;
 }
 
-FeatParam* GrammarParser::parse_fparam_list() {
+void GrammarParser::parse_fparam_list(FeatParam& fparam_list) {
 	if (! get_token("(", false, false))
-		return nullptr;
-	FeatParam* fparam_list = new FeatParam();
+		return;
+	fparam_list.param_type = FeatParamType::only_params;
+	fparam_list.params = new map<string, string>;
 	if (get_token(")", false))
-		return fparam_list;
+		return;
+	if (get_token("+,", false))
+		fparam_list.param_type = FeatParamType::with_params;
+	else if (get_token("-,", false))
+		fparam_list.param_type = FeatParamType::without_params;
 	parse_fparam(fparam_list);
 	while (get_token(",", false)) {
 		parse_fparam(fparam_list);
 	}
 	get_token(")");
-	return fparam_list;
 }
 
 void  GrammarParser::parse_feat_list(FeatPtr& feat_list, FeatList*& check_list) {
@@ -371,7 +375,7 @@ void GrammarParser::parse_prod(vector<PreProd>& prods,const string& macro_name) 
 				symbol.macro_values = &it->second;
 			}
 			if (symbol.nonterminal) {
-				symbol.fparam = parse_fparam_list();
+				parse_fparam_list(symbol.fparam);
 			}
 		}
 		if (get_token("{", false)) {
@@ -385,11 +389,19 @@ void GrammarParser::parse_prod(vector<PreProd>& prods,const string& macro_name) 
 	} while (get_token("|",false,true));
 }
 
+//bool operator==(const Symbol& a, const Symbol& b) {
+//	// check the equivalency of two symbols (their id's and feature parameters should match)
+//	if ((a.fparam == nullptr) != (b.fparam == nullptr))
+//		return false;
+//	if (a.fparam && *a.fparam == *b.fparam)
+//		return false;
+//	return a.id != b.id;
+//}
 bool operator==(const Symbol& a, const Symbol& b) {
 	// check the equivalency of two symbols (their id's and feature parameters should match)
-	if ((a.fparam == nullptr) != (b.fparam == nullptr))
+	if (a.fparam.param_type != b.fparam.param_type)
 		return false;
-	if (a.fparam && *a.fparam == *b.fparam)
+	if (*a.fparam.params == *b.fparam.params)
 		return false;
 	return a.id != b.id;
 }

@@ -432,7 +432,7 @@ int get_cost(TreeNode* node) {
 	return cost;
 }
 
-TreeNode* Parser::make_trans_tree(int id,FeatParam* fparam,FeatPtr parent_feat, unordered_map<TreeNode*, vector<TreeNode*>>* visited) {
+TreeNode* Parser::make_trans_tree(int id,const FeatParam& fparam,FeatPtr parent_feat, unordered_map<TreeNode*, vector<TreeNode*>>* visited) {
 	// make a translated sub tree (i.e. RHS-only subtree) from current id,parent feature,feature parameters
 	TreeNode* node = new TreeNode(&symbol_table.get(id), true);
 	string last_error;
@@ -507,7 +507,7 @@ struct FeatPred {
 };
 
 
-TreeNode* Parser::translate_tree_shared(unordered_map<TreeNode*, vector<TreeNode*>>& visited,TreeNode* node, FeatParam* fparam, FeatPtr parent_feat) {
+TreeNode* Parser::translate_tree_shared(unordered_map<TreeNode*, vector<TreeNode*>>& visited,TreeNode* node, const FeatParam& fparam, FeatPtr parent_feat) {
 	// translate a sub-tree
 	auto it = visited.find(node);
 	if (it == visited.end()) { // if "node" is visited first time, then initialize an empty vector as value
@@ -592,7 +592,7 @@ TreeNode* Parser::translate_tree_shared(unordered_map<TreeNode*, vector<TreeNode
 	return node;
 }
 
-TreeNode* Parser::translate_tree(TreeNode* node,FeatParam* fparam,FeatPtr parent_feat) {
+TreeNode* Parser::translate_tree(TreeNode* node,const FeatParam& fparam,FeatPtr parent_feat) {
 	// translate a sub-tree
 	string last_error;
 	vector<OptionNode*> new_options;
@@ -654,13 +654,14 @@ TreeNode* Parser::translate_tree(TreeNode* node,FeatParam* fparam,FeatPtr parent
 }
 
 TreeNode* Parser::translate_tree(TreeNode* parent_node,bool shared) {
+	FeatParam fparam;
 	FeatPtr feat_list = FeatPtr(new FeatList);
 	if (shared) {
 		unordered_map<TreeNode*, vector<TreeNode*>> visited;
-		return translate_tree_shared(visited, parent_node, nullptr, feat_list);
+		return translate_tree_shared(visited, parent_node, fparam, feat_list);
 	}
 	else {
-		return translate_tree(parent_node, nullptr, feat_list);
+		return translate_tree(parent_node, fparam, feat_list);
 	}
 }
 

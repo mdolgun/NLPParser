@@ -111,7 +111,6 @@ Prod::Prod(istream& is, SymbolTable* symbol_table) {
 	}
 }
 
-
 void FeatList::save(ostream& os) {
 	::save(os, (int)size());
 	for (auto&[name, val] : *this) {
@@ -130,51 +129,50 @@ FeatList::FeatList(istream& is) {
 		(*this)[name] = val;
 	}
 }
-void save_fparam(ostream& os, FeatParam* fparam) {
-	if (fparam == nullptr) {
-		save(os, -1);
+
+FeatParam::FeatParam(istream& is) {
+	int enum_param_type, size;
+	load(is, enum_param_type);
+	param_type = (FeatParamType)enum_param_type;
+	if (param_type == FeatParamType::all)
 		return;
-	}
-	fparam->save(os);
-}
-FeatParam* load_fparam(istream& is) {
-	int size;
+	params = new map<string, string>;
 	load(is, size);
-	if (size == -1)
-		return nullptr;
-	return new FeatParam(is, size);
-}
-FeatParam::FeatParam(istream& is,int size) {
-	for (int i = 0; i<size; ++i) {
+	for (int i = 0; i < size; ++i) {
 		string name, val;
 		load(is, name);
 		load(is, val);
-		(*this)[move(name)] = move(val);
+		(*params)[move(name)] = move(val);
 	}
 }
 void FeatParam::save(ostream& os) {
-	::save(os, (int)size());
-	for (auto&[name, val] : *this) {
-		::save(os, name);
-		::save(os, val);
+	::save(os, (int)param_type);
+	if (param_type != FeatParamType::all) {
+		::save(os, (int)params->size());
+		for (auto& [name, val] : *params) {
+			::save(os, name);
+			::save(os, val);
+		}
 	}
 }
 
 void Symbol::save(ostream& os) {
+	fparam.save(os);
 	::save(os, name);
 	//::save(os, id);
 	::save(os, nonterminal);
 	::save(os, idx);
-	save_fparam(os, fparam);
+	//save_fparam(os, fparam);
 }
-Symbol::Symbol(istream& is,SymbolTable* symbol_table) {
+
+Symbol::Symbol(istream& is,SymbolTable* symbol_table) : fparam(is) {
 	load(is, name);
 	//load(is, id);
 	load(is, nonterminal);
 	if (symbol_table && nonterminal)
 		id = symbol_table->add(name, true);
 	load(is, idx);
-	fparam = load_fparam(is);
+	//fparam = load_fparam(is);
 }
 
 void SymbolTable::save(ostream& os) {
