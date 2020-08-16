@@ -84,7 +84,18 @@ ostream & Prod::print(ostream& os) const {
 		return os << "{" << cost << "}";
 	return os;
 }
+Rule::Rule(PreSymbol* _head, PreProd* _left, PreProd* _right, FeatPtr& _feat_list, FeatList* _check_list, int macro_idx, SymbolTable* symbol_table, bool terminal_symbol) :
+	head(new Symbol(_head, symbol_table, true, macro_idx)),
+	left(new Prod(_left, symbol_table, terminal_symbol, macro_idx)), 
+	right(new Prod(_right, symbol_table, false, macro_idx)),
+	feat(_feat_list),
+	check_list(_check_list) {
 
+	if (left->size())
+		symbol_table->set_left(head->id);
+	if(right->size())
+		symbol_table->set_right(head->id);
+}
 ostream& Rule::print(ostream& os) const {
 	os << *head << " -> " << *left << " : " << *right << " " << *feat;
 	if (check_list)
@@ -974,6 +985,14 @@ void rtrim(std::string &s) {
 	s.erase(std::find_if(s.rbegin(), s.rend(), [](int ch) { return !isascii(ch) || !std::isspace(ch); }).base(), s.end());
 }
 
+void to_lower(string& s) {
+	for (char& c : s) {
+		if ('A' <= c && c <= 'Z') {
+			c += 'a' - 'A';
+		}
+	}
+}
+
 void Grammar::print_rules(ostream& os) {
 	os << "==========" << nl;
 	int n_rules = rules.size();
@@ -985,8 +1004,14 @@ void Grammar::print_symbol_table(ostream& os) {
 	os << "==========" << nl;
 	int n_symbols = symbol_table.size();
 	cout << "SymbolTable: " << n_symbols << nl;
-	for (int i = 0; i < n_symbols; ++i)
-		cout << symbol_table.get(i) << " : " << i << nl;
+	for (int i = 0; i < n_symbols; ++i) {
+		cout << symbol_table.get(i) << " : " << i << ' ';
+		if (symbol_table.is_left(i))
+			cout << 'L';
+		if (symbol_table.is_right(i))
+			cout << 'R';
+		cout << nl;
+	}
 }
 void Grammar::print_dict(ostream& os) {
 	os << "==========" << nl;

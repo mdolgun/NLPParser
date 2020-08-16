@@ -438,6 +438,8 @@ TreeNode* Parser::make_trans_tree(int id,const FeatParam& fparam,FeatPtr parent_
 	string last_error;
 	for (auto ruleno : ruledict[id]) {
 		Rule* rule = get_rule(ruleno);
+		if (rule->left->size())
+			throw UnifyError(format("Right-only non-terminal {} has also left context", rule->head->name));
 		try {
 			FeatPtr feat_list = rule->feat;
 			if( !unify_feat(feat_list, fparam, parent_feat, true, rule->check_list) )
@@ -446,7 +448,7 @@ TreeNode* Parser::make_trans_tree(int id,const FeatParam& fparam,FeatPtr parent_
 			option->cost = rule->right->cost;
 			for (auto symbol : *rule->right) {
 				if (symbol->nonterminal) {
-					assert(symbol->idx == -1); // a non-referenced nonterminal TODO: Throw UnifyError
+					assert(symbol->idx == -1); // a non-referenced nonterminal
 					TreeNode* sub_node = make_trans_tree(symbol->id, symbol->fparam, feat_list, visited);
 					option->cost += get_cost(sub_node);
 					option->right.push_back(sub_node);
@@ -964,6 +966,7 @@ void get_parse_error(ostream& os, vector<string>& words, int pos) {
 
 void Parser::parse(string input_str) {
 	// parses input string using current grammar, throwing ParseError if parsing fails, the parse tree can be later retrieved from "edges"
+	to_lower(input_str);
 	static regex input_re("'(?=[^t])");
 	input_str = regex_replace(input_str, input_re, " '"); // insert space before all "'" except followed by "t"
 
@@ -1103,10 +1106,17 @@ void Parser::parse(string input_str) {
 		}
 		vector<int> active_list(active.size());
 		copy(active.begin(), active.end(), active_list.begin());
+		if (debug >= 3) {
+			cout << "Checking Empty reductions for InputPos: " << pos << " current states: ";
+			join(cout, active, " ") << nl;
+		}
 		for (int i = 0; i < active_list.size(); i++) { // for each active state for the current position
 			int state = active_list[i];
 			for (auto [ruleno, rulepos] : ereduce[state]) {
 				auto rule = get_rule(ruleno);
+				if (debug >= 3) {
+					cout << "Reducing rule:" << *rule << " at position: " << rulepos << nl;
+				}
 				auto head = rule->head->id;
 				auto body = rule->left;
 				int end_state = state;
@@ -1118,6 +1128,9 @@ void Parser::parse(string input_str) {
 					end_state = next_state;
 				}
 				int next_state = dfa[state].at(head);
+				if (debug >= 3) {
+					cout << "Next state for reduced symbol: " << rule->head->name << " state: " << next_state << nl;
+				}
 				if (active.count(next_state) == 0) { // next_state is not in active states, then add it
 					active.insert(next_state);
 					active_list.push_back(next_state);
@@ -1195,7 +1208,7 @@ void Parser::parse(string input_str) {
 							if (debug >= 3) {
 								cout << "Inserting BackPtr: (" << pos << "," << rule_state << ",*)-> (" << pos << "," << state << ")" << nl;
 								cout << "Inserting Active Edge: " << Edge(pos, state, tail_id, pos + rulepos, rule_state) << nl;
-								cout << "Inserting Active State: " << rule_state << nl;
+								cout << "Inserting Active State: " << rule_state << " for InputPos: " << (pos+rulepos) << nl;
 							}
 							//<end_pos, end_state, symbol_id> -> <start_pos, start_state, Rule*, rulepos>*
 							Symbol* symbol = rule->left->at(rulepos);

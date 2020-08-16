@@ -1,10 +1,12 @@
 %load_dict main.dict
 #%include vp_inc.grm
+%auto_dict true
+
 S -> AdvCl() SentNorm       : AdvCl() SentNorm      [-gap]
 S -> SentNorm AdvCl()       : AdvCl() SentNorm      [-gap]
 S -> SentNorm               : SentNorm              [-gap]
 S -> SentInv                : SentInv               [+quest,-gap]
-S -> WhCase() SentInv       : SentInv                [+gap,gapw=*WhCase]
+S -> WhCase() SentInv       : SentInv               [+gap,gapw=*WhCase]
 S -> RelAdv SentInv         : SentInv               [-gap,reladv=*RelAdv]
 S -> SentImp                : SentImp               [-gap]
 S -> NP'                    : NP'
@@ -16,6 +18,12 @@ AdvCl -> because SentNorm      : SentNorm için         [conn=dik,-gap]
 AdvCl -> as long as SentNorm   : SentNorm sürece       [conn=dik,-gap]
 AdvCl -> as soon as SentNorm   : SentNorm              [conn=ir_mez,-gap,+pron]
 AdvCl -> until SentNorm        : SentNorm +e kadar     [conn=en,-gap,+pron]
+AdvCl -> after SentNorm        : SentNorm +den sonra   [conn=me,-gap]
+AdvCl -> before SentNorm       : SentNorm +den önce    [conn=me,-gap]
+
+AdvCl -> after BaseGerund(-gap) : BaseGerund() -DHktAn sonra
+AdvCl -> before BaseGerund(-gap) : BaseGerund() -mAdAn önce
+AdvCl -> while BaseGerund(-gap) : BaseGerund() +aor -ken
 
 Then -> then
 Then ->
@@ -139,6 +147,7 @@ Futr -> : Neg -YAcAk?                          [conn=?en]
 Futr -> : Neg -YAcAk? SubjPoss                 [conn=?dik]
 Futr -> : Neg -YAcAksA Pers2'                  [conn=?if]
 Futr -> : Neg -YAcAkken                        [conn=?ken,+pron]
+Futr -> : Neg -YAcAk olma SubjPoss             [conn=?me]
 Futr -> : +copy +aor +paste -mAz               [conn=?ir_mez,+pron] 
 Futr -> : +copy -YHp +paste -mAYAcAk? SubjPoss [conn=?ip_medik]
 
@@ -147,13 +156,16 @@ Abil -> : NegAbil' -sA Pers2'                  [conn=?if]
 Abil -> : NegAbil -YAn                         [conn=?en]
 Abil -> : NegAbil -DHk? SubjPoss               [conn=?dik]
 Abil -> : NegAbil' -ken            	           [conn=?ken,+pron]
+Abil -> : NegAbil -mA SubjPoss                 [conn=?me]
+Abil -> : +copy +aor +paste -mAz               [conn=?ir_mez,+pron] 
 Abil -> : +copy -YHp +paste -YAmADHk? SubjPoss [conn=?ip_medik]
 
 Poss -> : Neg -YAbilir Quest PresPast              [!conn] 
 Poss -> : Neg -YAbilirse Pers2'                    [conn=?if]
 Poss -> : Neg -YAbilen                             [conn=?en]
-Poss -> : Neg -YAbildik? SubjPoss                  [conn=?dik]
+Poss -> : Neg -YAbilecek? SubjPoss                 [conn=?dik]
 Poss -> : Neg -YAbilirken                          [conn=?ken]
+Poss -> : Neg -YAbilme                             [conn=?me]
 Poss -> : +copy -YHp +paste -mAYAbilDHk? SubjPoss  [conn=?ip_medik]
 
 Necc -> : Neg -mAlH Quest Pers1'               [!conn]
@@ -161,6 +173,7 @@ Necc -> : Neg -mAlHysA Pers2'                  [conn=?if]
 Necc -> : Neg -mAk zorunda olan                [conn=?en]
 Necc -> : Neg -mAk zorunda olduk? SubjPoss     [conn=?dik]
 Necc -> : Neg -mAlHyken                        [conn=?ken,+pron]
+Necc -> : Neg -mAk zorunda olma SubjPoss       [conn=?me]
 Necc -> : -mAk zorunda olup olmadık? SubjPoss  [conn=?ip_medik]
 
 ModalCan -> : -YAbilir Quest PresPast         [!neg]
@@ -194,6 +207,7 @@ PerfTense' -> : PredBe Neg -mHş olduk? SubjPoss           [conn=?dik]
 PerfTense' -> : PredBe Neg -DHysA Pers2'                  [conn=?if,tense=pres]
 PerfTense' -> : PredBe Neg -mHş olsaydı Pers2'            [conn=?if,tense=past]
 PerfTense' -> : PredBe Neg -mHşken                        [conn=?ken]
+PerfTense' -> : PredBe Neg -mHş olma SubPoss              [conn=?me]
 PerfTense' -> : PredBe +copy -YHp +paste -mADHk? SubjPoss [conn=?ip_medik,tense=pres]
 PerfTense' -> : PredBe -mHş olup olmadık? SubjPoss        [conn=?ip_medik,tense=past]
 
@@ -203,6 +217,7 @@ Pres -> : PresSuf -sA Pers2'                 [conn=?if]
 Pres -> : Neg -YAn                           [conn=?en]
 Pres -> : Neg -DHk? SubjPoss                 [conn=?dik]
 Pres -> : PresSuf -ken                       [conn=?ken]
+Pres -> : Neg -mA SubjPoss                   [conn=?me]
 Pres -> : +copy +aor +paste -mAz             [conn=?ir_mez,+pron] 
 Pres -> : +copy -YHp +paste -mADHk? SubjPoss [conn=?ip_medik]
 
@@ -212,6 +227,7 @@ Past -> : Neg -sAyDH Pers2'                  [conn=?if]
 Past -> : Neg -YAn                           [conn=?en]
 Past -> : Neg -DHk? SubjPoss                 [conn=?dik]
 Past -> : PresSuf -ken                       [conn=?ken]
+Past -> : Neg -mA SubjPoss                   [conn=?me]
 Past -> : +copy +aor +paste -mAz             [conn=?ir_mez,+pron] 
 Past -> : +copy -YHp +paste -mADHk? SubjPoss [conn=?ip_medik]
 
@@ -221,6 +237,7 @@ Prog -> : Neg -Vyor olsaydı Pers2'           [conn=?if,tense=past]
 Prog -> : Neg -YAn                           [conn=?en]
 Prog -> : Neg -DHk? SubjPoss                 [conn=?dik]
 Prog -> : Neg -Vyorken                       [conn=?ken]
+Prog -> : Neg -mA SubjPoss                   [conn=?me]
 Prog -> : +copy -YHp +paste -mADHk? SubjPoss [conn=?ip_medik]
 
 PresTense -> : +aor Quest Pers1'          [!neg]
@@ -243,7 +260,7 @@ Quest -> :    [!quest]
 
 ForObjInf -> for Obj(oper,onum) to BaseModal() : Obj(case=+in) BaseModal() -mA ObjPoss
 
-Pred -> Obj'            : Obj' [+pred]
+Pred -> Obj'            : Obj' [+pred,case=+0]
 Pred -> Adj             : Adj [-gap, +pred]
 Pred -> PP              : PP  [-gap,+pred]
 Pred -> PPGap           : PPGap [+gap,+pred]
@@ -263,11 +280,29 @@ PredTense -> : ol Neg -DHk? SubjPoss  [conn=?dik]
 PredTense -> : NegPred -YsA Pers2'    [conn=?if,tense=pres]
 PredTense -> : olsaydı Pers2'         [conn=?if,tense=past]
 PredTense -> : -ken                   [conn=?ken]
+PredTense -> : ol Neg -mA SubjPoss    [conn=?me]
 PredTense -> : olup olmadık? SubjPoss [conn=?ip_medik]
 PredTense -> : olur olmaz             [conn=?ir_mez]
 
+Objs -> NP'(num=*onum) 's : NP'() [oper=3]
+Objs -> PossPron(pper=*oper,pnum=*onum) : Pron
+
+
+Obj -> NP'(num=*onum,def,neg) : NP'() ObjCase   [oper=3]
+Obj -> ObjPron   :                   [+def,case=?+in]
+Obj -> ObjPron   :                   [+def,!case]
+Obj -> ObjPron   : ObjPron ObjCase   [+def,case=!+in]
+
+
 ObjObj -> Obj-1() Obj-2() : Obj-1(case=*case1) Obj-2(case=*case2)     [-gap]
 ObjObj -> Obj-1()         : Obj-1(case=*case1) GapW(gapw,case=*case2) [+gap]
+
+Obj1 -> Obj() : Obj(case=*case1)       [-gap,-gap1]
+Obj1 -> Obj() : Obj(case=*case1)       [+gap,+gap1]
+Obj1 ->       : GapW(gapw,case=*case1) [+gap,-gap1]
+
+Obj2 -> Obj() : Obj(case=*case2)       [-gap1]
+Obj2 ->       : GapW(gapw,case=*case2) [+gap1]
 
 Obj' -> Obj(onum,oper)   : Obj(case)       [-gap]
 Obj' ->                  : GapW(gapw,case) [+gap]
@@ -284,6 +319,12 @@ ObjGer -> Not BaseGerund(-gap)                 : GapW(gapw,case) BaseGerund() Ne
 
 ObjThat -> Obj(oper,onum) SThat'(gap) : Obj(case) SThat'(gapw)
 ObjThat -> SThat'(-gap) : SThat'() [+gap]
+
+ObjIf -> Obj(oper,onum) SWhether'(gap) : Obj(case) SWhether'(gapw)
+ObjIf -> SWhether'(-gap) : SWhether'() [+gap]
+
+ObjWh -> Obj(oper,onum) Wh(gap) : Obj(case) Wh(gapw)
+ObjWh -> Wh(-gap) : Wh() [+gap]
 
 PassInf -> to Not BaseModal(gap) : BaseModal(gapw) -mA SubjPoss
 
@@ -347,7 +388,7 @@ WhP -> how Adj : ne kadar Adj
 WhP -> how old : kaç yaşında
 WhP -> what N : ne N
 
-Obj -> NP'(num=*onum,def) : NP'() ObjCase   [oper=3]
+Obj -> NP'(num=*onum,def,neg) : NP'() ObjCase   [oper=3]
 Obj -> ObjPron   :                   [+def,case=?+in]
 Obj -> ObjPron   :                   [+def,!case]
 Obj -> ObjPron   : ObjPron ObjCase   [+def,case=!+in]
@@ -479,6 +520,26 @@ PostDet -> many | several : birçok  [num=plur,+noplur]
 PostDet -> much           : çok     [num=sing]
 PostDet -> CardinalNumber : CardinalNumber
 PostDet -> OrdinalNumber  : OrdinalNumber
+
+Card1 -> one|two|three|four|five|six|seven|eight|nine
+CardTeen -> ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen
+CardTens -> twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety
+Card2 -> CardTens | CardTens Card1 | CardTeen | Card1
+Card3 -> Card1 hundred And Card2 | Card2
+Card6 -> Card3 thousand Card3 | Card3
+Card9 -> Card3 million Card6 | Card6
+Card12 -> Card3 billion Card9 | Card9
+Card15 -> Card3 trillion Card12 | Card12
+And -> | and
+Ord1 -> first|second|third|fourth|fifth|sixth|seventh|eighth|ninth
+OrdTeen -> tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth
+OrdTens -> twentieth|thirtieth|fortieth|fiftieth|sixtieth|seventieth|eightieth|ninetieth
+Ord2 -> OrdTens | CardTens Ord1 | OrdTeen | Ord1
+Ord3 -> Card1 hundred And Ord2 | Ord2
+Ord6 -> Card3 thousand Ord3 | Ord3
+Ord9 -> Card3 million Ord6 | Ord6
+Card12 -> Card3 billion Ord9 | Ord9
+Card15 -> Card3 trillion Ord12 | Ord12
 
 NP' -> NP                    : NP
 NP' -> NP OptWhich SThatObj()   : SThatObj() NP         # the book i am reading

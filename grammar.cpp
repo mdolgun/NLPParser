@@ -8,7 +8,8 @@ using namespace std;
 
 void save_suffixes(ostream& os, Grammar& grammar);
 void load_suffixes(istream& is, Grammar& grammar);
-
+void save_templates(ostream& os, Grammar& grammar);
+void load_templates(istream& is, Grammar& grammar);
 //SymbolTable symbol_table;
 
 void GrammarParser::skip_ws() {
@@ -138,7 +139,7 @@ void GrammarParser::parse_grammar(istream& is,int level,int start_line) {
 				auto start = std::chrono::system_clock::now();
 				ofstream os(params[1], ios::binary|ios::out);
 				save_suffixes(os, *grammar);
-				//save_templates(os, *grammar);
+				//save_templates(os, *grammar); // is it necessary?
 				grammar->root->save(os);
 				auto end = std::chrono::system_clock::now();
 				if (profile >= 1)
@@ -150,7 +151,7 @@ void GrammarParser::parse_grammar(istream& is,int level,int start_line) {
 				auto start = std::chrono::system_clock::now();
 				ifstream is(params[1], ios::binary | ios::in);
 				load_suffixes(is, *grammar);
-				//load_templates(is, *grammar);
+				//load_templates(is, *grammar); // is it necessary?
 				grammar->root = new TrieNode(is, *grammar);
 				auto end = std::chrono::system_clock::now();
 				if (profile >= 1)
@@ -434,17 +435,20 @@ void GrammarParser::create_rule(PreSymbol* head, PreProd* left, PreProd* right, 
 				flag = None;
 	}
 	if (flag == None) { // don't add to dict
-		Rule* rule = new Rule(new Symbol(head, symbol_table, true, macro_idx), new Prod(left, symbol_table, true, macro_idx), new Prod(right, symbol_table, false, macro_idx), feat_list, check_list);
+		//Rule* rule = new Rule(new Symbol(head, symbol_table, true, macro_idx), new Prod(left, symbol_table, true, macro_idx), new Prod(right, symbol_table, false, macro_idx), feat_list, check_list);
+		Rule* rule = new Rule(head, left, right, feat_list, check_list, macro_idx, symbol_table, true);
 		rule->resolve_references();
 		rule->id = grammar->rules.size();
 		grammar->rules.emplace_back(rule); // unique_ptr is created for the rule
 	}
 	else if (flag == TermOnly) { // add whole rule LHS to the dict
-		Rule* rule = new Rule(new Symbol(head, symbol_table, true, macro_idx), new Prod(left, symbol_table, false, macro_idx), new Prod(right, symbol_table, false, macro_idx), feat_list, check_list);
+		//Rule* rule = new Rule(new Symbol(head, symbol_table, true, macro_idx), new Prod(left, symbol_table, false, macro_idx), new Prod(right, symbol_table, false, macro_idx), feat_list, check_list);
+		Rule* rule = new Rule(head, left, right, feat_list, check_list, macro_idx, symbol_table, false);
 		add_trie(grammar->root, rule->terminal_prefix(), rule);
 	}
 	else { // normalize the rule so that it starts with a dummy NonTerminal which contains initial terminals
-		Rule* rule = new Rule(new Symbol(head, symbol_table, true, macro_idx), new Prod(left, symbol_table, false, macro_idx), new Prod(right, symbol_table, false, macro_idx), feat_list, check_list);
+		//Rule* rule = new Rule(new Symbol(head, symbol_table, true, macro_idx), new Prod(left, symbol_table, false, macro_idx), new Prod(right, symbol_table, false, macro_idx), feat_list, check_list);
+		Rule* rule = new Rule(head, left, right, feat_list, check_list, macro_idx, symbol_table, false);
 		add_trie(grammar->root, rule->terminal_prefix(), rule);
 		rule->resolve_references();
 		grammar->templates.emplace(rule->get_template(),nullptr);

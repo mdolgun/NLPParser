@@ -13,7 +13,8 @@ class SymbolTable {
 	// keeps a mapping from string representation to symbol id and vice versa
 	struct Entry {
 		string name;
-		bool nonterminal;
+		bool nonterminal, left, right;
+		Entry(string p_name,bool p_nonterminal,bool p_left,bool p_right) : name(p_name), nonterminal(p_nonterminal), left(p_left), right(p_right) { }
 	};
 	vector<Entry> table;
 	unordered_map<string, int> mapper;
@@ -21,7 +22,7 @@ public:
 	int add(string& str, bool nonterm) {
 		auto[it, inserted] = mapper.insert({ str, size() });
 		if (inserted)
-			table.push_back({ str,nonterm });
+			table.emplace_back(str,nonterm,false,false);
 		return it->second;
 	}
 	int map(const string& str) const {
@@ -36,6 +37,18 @@ public:
 	bool nonterminal(int id) const {
 		return table[id].nonterminal;
 	}
+	void set_right(int id) {
+		table[id].right = true;
+	}
+	void set_left(int id) {
+		table[id].left = true;
+	}
+	bool is_right(int id) {
+		return table[id].right;
+	}
+	bool is_left(int id) {
+		return table[id].left;
+	}
 	int size() const {
 		return static_cast<int>(table.size());
 	}
@@ -46,6 +59,12 @@ public:
 
 struct TreeNode;
 using FeatVal = variant<string, int, TreeNode*>;
+/*
+string: normal features 
+int: left index for parsed rules 
+TreeNode*: the left tree node for a parse tree
+*/
+
 inline ostream& operator<<(ostream& os, const FeatVal& val) {
 	if (holds_alternative<string>(val))
 		os << get<string>(val);
@@ -55,11 +74,7 @@ inline ostream& operator<<(ostream& os, const FeatVal& val) {
 		os << '*';
 	return os;
 }
-//bool operator==(const FeatVal& left, const string& right) {
-//	if (holds_alternative<string>(left))
-//		return get<string>(left)==right;
-//	return false;
-//}
+
 struct FeatList : public map<string, FeatVal> {
 	static int count;
 	FeatList() {
@@ -85,7 +100,7 @@ enum class FeatParamType : unsigned char {
 	all,			// All features are passed through								e.g. V -> PPS
 	only_params,	// Only parameters are passed through							e.g. V -> PPS(+gap) PPS(gap)
 	with_params,	// Parameters and remaining features are passed through			e.g. V -> PPS(+, +gap) 		Note: PPS(+, gap) == PPS
-	without_params	// Except parameters, remaining features are passed through		e.g. V -> PPS(-, gap)		Note: PPS(-, +gap) == PPS
+	without_params	// Except parameters, remaining features are passed through		e.g. V -> PPS(-, gap)		Note: PPS(-, +gap) == PPS(-, gap)
 };
 struct FeatParam {
 	map<string, string>* params = nullptr;
@@ -196,6 +211,7 @@ struct Rule {
 		right = new Prod;
 		feat = FeatPtr(new FeatList);
 	}
+	Rule(PreSymbol* head, PreProd* left, PreProd* right, FeatPtr& feat_list, FeatList* check_list, int macro_idx, SymbolTable* symbol_table,bool terminal_symbol);
 	Rule(Symbol* _head, Prod* _left, Prod* _right, FeatPtr& _feat, FeatList* _check_list) : head(_head),left(_left),right(_right),feat(_feat), check_list(_check_list) { }
 	Rule(istream& is, Grammar& grammar);
 	void save(ostream& os);
@@ -309,3 +325,4 @@ void split(vector<string>& result, const string &s, char delim);
 void indent(ostream& os, int size);
 void ltrim(string &s);
 void rtrim(string &s);
+void to_lower(string& s);
