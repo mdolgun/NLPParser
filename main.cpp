@@ -42,7 +42,8 @@ vector<string> split_strip(const string& s, char delim) {
 	}
 	return result;
 }
-extern Parser* p_parser;
+Parser* p_parser;
+SymbolTable* p_symbol_table;
 
 void UnitTest::parse_sent(string sent) {
 	TreeNode* ptree = nullptr, * utree = nullptr, * ttree = nullptr;
@@ -148,6 +149,7 @@ void UnitTest::test_case(string fname) {
 					cout << "ParseGrammar: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << " mics\n";
 
 				p_parser = parser.get(); // quick & dirty solution
+				p_symbol_table = &parser->symbol_table;
 
 				start = std::chrono::system_clock::now();
 				parser->compile();
@@ -176,6 +178,7 @@ void UnitTest::test_case(string fname) {
 					cout << "ParseGrammar: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << " mics\n";
 
 				p_parser = parser.get(); // quick & dirty solution
+				p_symbol_table = &parser->symbol_table;
 
 				start = std::chrono::system_clock::now();
 				parser->compile();

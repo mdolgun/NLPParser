@@ -8,21 +8,20 @@ extern int profile;
 
 constexpr char nl = '\n';
 
-class SymbolTable {
+struct SymbolEntry {
+	string name;
+	bool nonterminal, left = false, right = false, nullable = false, major = true;
+	SymbolEntry(string p_name, bool p_nonterminal) : name(p_name), nonterminal(p_nonterminal) { }
+};
+struct SymbolTable {
 	// keeps a unique id for all terminals & nonterminals 
 	// keeps a mapping from string representation to symbol id and vice versa
-	struct Entry {
-		string name;
-		bool nonterminal, left, right;
-		Entry(string p_name,bool p_nonterminal,bool p_left,bool p_right) : name(p_name), nonterminal(p_nonterminal), left(p_left), right(p_right) { }
-	};
-	vector<Entry> table;
+	vector<SymbolEntry> table;
 	unordered_map<string, int> mapper;
-public:
 	int add(string& str, bool nonterm) {
 		auto[it, inserted] = mapper.insert({ str, size() });
 		if (inserted)
-			table.emplace_back(str,nonterm,false,false);
+			table.emplace_back(str,nonterm);
 		return it->second;
 	}
 	int map(const string& str) const {
@@ -43,11 +42,17 @@ public:
 	void set_left(int id) {
 		table[id].left = true;
 	}
+	void set_nullable(int id) {
+		table[id].nullable = true;
+	}
 	bool is_right(int id) {
 		return table[id].right;
 	}
 	bool is_left(int id) {
 		return table[id].left;
+	}
+	bool is_nullable(int id) {
+		return table[id].nullable;
 	}
 	int size() const {
 		return static_cast<int>(table.size());
@@ -55,6 +60,7 @@ public:
 	SymbolTable() = default;
 	SymbolTable(istream& is);
 	void save(ostream& os);
+	SymbolEntry& operator[](int id) { return table[id]; }
 };
 
 struct TreeNode;
@@ -270,19 +276,22 @@ struct OptionNode {
 	vector<TreeNodePtr> right; // right productions of this option
 	FeatPtr feat_list; // feature list associated with this option
 	int cost = 0;
+	int term_cnt = 0;
 	OptionNode(Rule* _rule, FeatPtr _feat_list) : rule(_rule),feat_list(_feat_list) { }
 };
 //using OptionNodePtr = unique_ptr<OptionNode>;
 using OptionNodePtr = OptionNode * ;
 struct TreeNode {
-	static int id_count;
+	static int node_count;
 	vector<OptionNodePtr> options;
+	SymbolEntry* head = nullptr;
 	const string* name;
 	int start_pos = 0, end_pos = 0;
-	int id;
+	int node_id;
 	bool nonterm;
-	TreeNode(const string* _name,bool _nonterm) : name(_name),nonterm(_nonterm),id(id_count++) { }
-	TreeNode(const TreeNode* other) : name(other->name), nonterm(other->nonterm), start_pos(other->start_pos), end_pos(other->end_pos), id(id_count++) { }
+	TreeNode(const string* _name,bool _nonterm) : name(_name),nonterm(_nonterm),node_id(node_count++) { }
+	TreeNode(SymbolEntry* _head) : name(&_head->name), nonterm(_head->nonterminal),head(_head),node_id(node_count++) { }
+	TreeNode(const TreeNode* other) : name(other->name), nonterm(other->nonterm), start_pos(other->start_pos), end_pos(other->end_pos), head(other->head), node_id(node_count++) { }
 };
 
 struct Grammar {

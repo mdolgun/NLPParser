@@ -158,6 +158,20 @@ void GrammarParser::parse_grammar(istream& is,int level,int start_line) {
 					cout << "LoadDict " << params[1] << ": " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << " mics\n";
 
 			}
+			else if (directive == "major") { // %major NT[,NT]*
+				if (params.size() != 2)
+					throw GrammarError("Invalid Directive Parameter Count: " + buf);
+				for (auto& entry : grammar->symbol_table.table)
+					entry.major = false;
+				vector<string> items;
+				split(items, params[1], ',');
+				for (auto& item : items) {
+					auto id = grammar->symbol_table.map(item);
+					if (id == -1)
+						throw GrammarError("Symbol not defined: " + item);
+					grammar->symbol_table[id].major = true;
+				}
+			}
 			//else if (directive == "suffix_macro") { // %suffix_macro <name> <values>
 			//	if (params.size() != 3)
 			//		throw GrammarError("Invalid Directive Parameter Count: " + buf);

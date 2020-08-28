@@ -4,7 +4,7 @@
 
 int debug, debug_mem, profile;
 
-int TreeNode::id_count = 0;
+int TreeNode::node_count = 0;
 
 
 int FeatList::count = 0;
@@ -48,25 +48,6 @@ ostream& FeatParam::print(ostream& os) const {
 	os << ")";
 	return os;
 }
-
-//ostream& FeatParam::print(ostream& os) const {
-//	if (empty())
-//		return os << "()";
-//	os << "(";
-//	bool flag = false;
-//	for (const auto& feat : *this) {
-//		if (flag)
-//			os << ",";
-//		else
-//			flag = true;
-//		os << feat.first;
-//		if (!feat.second.empty()) {
-//			os << "=" << feat.second;
-//		}
-//	}
-//	os << ")";
-//	return os;
-//}
 
 ostream& Symbol::print(ostream& os) const {
 	os << name;
@@ -254,9 +235,24 @@ void print_partial_rule(ostream& os, Rule* rule, int start_pos, int end_pos) {
 //	}
 //	return out;
 //}
+extern SymbolTable* p_symbol_table;
+bool print_tree(ostream& os, TreeNode* node, int level, int indent_size, bool extended, bool right) {
+	// helper for print_tree, returns true for any non_empty output
+	if (node->head && node->nonterm && !node->head->major && node->options.size() <= 1) {
+		bool non_empty = false;
+		if (node->options.size()) {
+			auto& node_seq = right ? node->options[0]->right : node->options[0]->left;
+			bool seperator = false;
+			for (auto sub_node : node_seq) {
+				if (seperator)
+					os << ' ';
+				seperator = print_tree(os, sub_node, level, indent_size, extended, right);
+				non_empty |= seperator;
+			}
+		}
+		return non_empty;
+	}
 
-void print_tree(ostream& os, TreeNode* node, int level, int indent_size, bool extended, bool right) {
-	// helper for print_tree
 	indent(os, level * indent_size);
 	os << *node->name;
 /*
@@ -268,7 +264,7 @@ void print_tree(ostream& os, TreeNode* node, int level, int indent_size, bool ex
 	}
 */
 	if (!node->nonterm)
-		return;
+		return true;
 
 	if (!extended && indent_size && node->options.size() == 1) {
 		auto& node_list = right ? node->options[0]->right : node->options[0]->left;
@@ -278,7 +274,7 @@ void print_tree(ostream& os, TreeNode* node, int level, int indent_size, bool ex
 	os << '(';
 	bool first = true;
 	for (auto option : node->options) {
-		auto node_seq = right ? option->right : option->left;
+		auto& node_seq = right ? option->right : option->left;
 		if (indent_size)
 			os << nl;
 		if (first) {
@@ -288,8 +284,8 @@ void print_tree(ostream& os, TreeNode* node, int level, int indent_size, bool ex
 					os << '#' << option->rule->id;
 				else
 					os << '{' << *option->rule << '}';
-				if (option->cost)
-					os << '(' << option->cost << ')';
+				if (option->cost || option->term_cnt)
+					os << '(' << option->cost << ':' << option->term_cnt << ')';
 				if (option->rule->right->cost)
 					os << '{' << option->rule->right->cost << '}';
 				if (option->feat_list)
@@ -332,6 +328,7 @@ void print_tree(ostream& os, TreeNode* node, int level, int indent_size, bool ex
 		os << nl;
 	indent(os, level * indent_size);
 	os << ')';
+	return true;
 }
 void print_tree(ostream& os, TreeNode* tree, bool indented, bool extended, bool right) {
 	/*

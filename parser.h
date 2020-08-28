@@ -23,6 +23,10 @@ struct Parser : public Grammar{
 	unordered_map<Edge, vector<EdgeInfo>> edges;
 	unordered_map<BackParam, StateSet> nodes; // maps(pos, state, symbol) to set of(oldpos, oldstate) (i.e adds an arc from(pos, state) to(oldpos, oldstate) labeled with symbol)
 	unordered_map<tuple<int, int, int, Rule*>, StateSet> back_nodes;
+	unordered_map<tuple<int, int, int>, unordered_set<tuple<Rule*, int>>> expected; // <end_pos,end_state, symbol_id> -> <Rule*,rulepos>*
+	vector<unordered_set<int>> act_states; // active set of states for each position
+	vector<unordered_set<Edge>> act_edges; // active set of edges for each position
+
 	/**/
 	int tail_id;
 	/**/
@@ -53,6 +57,7 @@ struct Parser : public Grammar{
 	void compile();
 	void print_dfa(ostream& os, bool csv = false);
 	void print_dfa_dot(ostream& os);
+	void add_edge(int start_pos, int start_state, int symbol_id, int end_pos, int end_state);
 	void match_and_reduce(unordered_set<int>& active, vector<Edge>& edge_list, vector<Edge>& edge_seq, Rule* rule, int rulepos, const Edge& edge);
 	void match_and_reduce(unordered_set<int>& active, vector<Edge>& edge_list, vector<Edge>& edge_seq, Rule* rule, int rulepos, int dic_rulepos, const Edge& edge);
 	void parse(string input);
