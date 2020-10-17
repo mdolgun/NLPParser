@@ -233,10 +233,12 @@ bool GrammarParser::get_symbol(vector<PreSymbol>& symbols, bool ensure, bool ski
 	smatch sm;
 	if (regex_search(begin, end, sm, SYMBOL, regex_constants::match_continuous)) {
 		pos += sm.length();
-		if (sm[1].matched)
-			symbols.emplace_back(sm.str(1), true); // NonTerminal
-		if (sm[2].matched)
-			symbols.emplace_back(sm.str(2), false); // Terminal
+		if (sm[1].matched) // NonTerminal
+			symbols.emplace_back(sm.str(1), true); 
+		else if (sm[2].matched) // Terminal with double-quotes
+			symbols.emplace_back(sm.str(2), false);
+		else if (sm[3].matched) // Terminal without double-quotes
+			symbols.emplace_back(sm.str(3), false);
 		return true;
 	}
 	if (ensure) {

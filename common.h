@@ -320,7 +320,7 @@ using EnumVec = vector<pair<string, int>>;
 
 vector<string> enumerate(Grammar* grammar, TreeNode* node, bool right = true);
 void print_tree(ostream& os, TreeNode* tree, bool indented, bool extended, bool right);
-void convert(ostream& os, TreeNode* node, Grammar* grammar, EnumVec& enums);
+void convert(ostream& os, TreeNode* node, Grammar* grammar, EnumVec& enums, bool show_trans_expr);
 TreeNode* unify_tree(TreeNode* parent_node, bool shared=false);
 bool unify_feat(shared_ptr<FeatList>& dst, const FeatParam& param, shared_ptr<FeatList> src, bool down, FeatList* check_list=nullptr);
 void dot_print(ostream& os, TreeNode* node, bool left = true, bool right = false);

@@ -28,7 +28,7 @@ struct Parser : public Grammar{
 	vector<unordered_set<Edge>> act_edges; // active set of edges for each position
 
 	/**/
-	int tail_id;
+	int tail_id, unknown_id;
 	/**/
 
 	int n_states, n_symbols;
@@ -60,7 +60,7 @@ struct Parser : public Grammar{
 	void add_edge(int start_pos, int start_state, int symbol_id, int end_pos, int end_state);
 	void match_and_reduce(unordered_set<int>& active, vector<Edge>& edge_list, vector<Edge>& edge_seq, Rule* rule, int rulepos, const Edge& edge);
 	void match_and_reduce(unordered_set<int>& active, vector<Edge>& edge_list, vector<Edge>& edge_seq, Rule* rule, int rulepos, int dic_rulepos, const Edge& edge);
-	void parse(string input);
+	void parse(string input,int unknown=0);
 	void print_parse(ostream& os, Edge& parent_edge, int level = 0, int indent_size = 0, bool extended = false);
 	void print_parse_dot(ostream& os, unordered_set<Edge>&completed, Edge& parent_edge);
 	void print_parse_dot(ostream& os);
@@ -77,16 +77,4 @@ struct Parser : public Grammar{
 	TreeNode* translate_tree(TreeNode* parent_node, const FeatParam& fparam, FeatPtr parent_feat);
 };
 
-struct UnitTest {
-	bool shared, dot, raw_dot;
-	int case_total = 0, success_total = 0;
-	int line_num = 0;
-	ifstream& get_line(ifstream& is, string& line);
-	string get_lines(ifstream& is, stringstream& ref);
-	UnitTest(bool _shared = false, bool _dot = false, bool _raw_dot = false) : shared(_shared),dot(_dot),raw_dot(_raw_dot) { }
-	static void diff(string a, string b);
-	void parse_sent(string sent);
-	void test_case(string fname);
-	void test_dir(string dirname);
-	void print_result();
-};
+

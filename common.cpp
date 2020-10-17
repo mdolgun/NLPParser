@@ -238,6 +238,7 @@ void print_partial_rule(ostream& os, Rule* rule, int start_pos, int end_pos) {
 extern SymbolTable* p_symbol_table;
 bool print_tree(ostream& os, TreeNode* node, int level, int indent_size, bool extended, bool right) {
 	// helper for print_tree, returns true for any non_empty output
+
 	if (node->head && node->nonterm && !node->head->major && node->options.size() <= 1) {
 		bool non_empty = false;
 		if (node->options.size()) {
@@ -245,7 +246,10 @@ bool print_tree(ostream& os, TreeNode* node, int level, int indent_size, bool ex
 			bool seperator = false;
 			for (auto sub_node : node_seq) {
 				if (seperator)
-					os << ' ';
+					if (indent_size)
+						os << nl;
+					else
+						os << ' ';
 				seperator = print_tree(os, sub_node, level, indent_size, extended, right);
 				non_empty |= seperator;
 			}
@@ -545,11 +549,12 @@ void enumerate(vector<Node>& nodes, EnumVec& out) {
 	}
 }
 
-void convert(ostream& os, TreeNode* node, Grammar* grammar,EnumVec& enums) {
+void convert(ostream& os, TreeNode* node, Grammar* grammar,EnumVec& enums,bool show_trans_expr) {
 	vector<Node> out;
 	convert(node, out, grammar);
 	postprocess(out);
-	os << out << nl;
+	if (show_trans_expr)
+		os << "#" << out << nl;
 	enums.emplace_back("", 0);
 	enumerate(out, enums);
 	for (auto& [item,cost] : enums)

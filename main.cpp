@@ -2,6 +2,26 @@
 #include "parser.h"
 #include <chrono>
 
+struct UnitTest {
+	bool shared, dot, raw_dot;
+	int unknown = 0, show_trans_expr = 0;
+	int case_total = 0, success_total = 0;
+	int case_cnt = 0, total_cnt = 0, success_cnt = 0;
+	int line_num = 0;
+	long long total_parse = 0, total_make = 0, total_unify = 0, total_trans = 0, total_post = 0;
+	unique_ptr<Parser> parser;
+	ifstream& get_line(ifstream& is, string& line);
+	string get_lines(ifstream& is, stringstream& ref);
+	UnitTest(bool _shared = false, bool _dot = false, bool _raw_dot = false) : shared(_shared), dot(_dot), raw_dot(_raw_dot) { }
+	static void diff(string a, string b);
+	void parse_sent(string sent);
+	void test_sent(string line);
+	void test_case(string fname);
+	void test_dir(string dirname);
+	void test_file(string fname);
+	void print_result();
+};
+
 ifstream& UnitTest::get_line(ifstream& is, string& line) {
 	line_num++;
 	getline(is, line);
@@ -47,8 +67,7 @@ SymbolTable* p_symbol_table;
 
 void UnitTest::parse_sent(string sent) {
 	TreeNode* ptree = nullptr, * utree = nullptr, * ttree = nullptr;
-	Parser* parser = p_parser; // CHANGE SOON!!!
-	long long total_parse = 0, total_make = 0, total_unify = 0, total_trans = 0, total_post = 0;
+	//Parser* parser = p_parser; // CHANGE SOON!!!
 
 	try {
 		auto start = std::chrono::system_clock::now();
@@ -92,7 +111,7 @@ void UnitTest::parse_sent(string sent) {
 		print_tree(cout, ttree, false, false, true);
 		EnumVec results;
 		start = std::chrono::system_clock::now();
-		cout << '#'; convert(cout, ttree, parser, results);
+		convert(cout, ttree, parser.get(), results, show_trans_expr);
 		end = std::chrono::system_clock::now();
 		auto mics_post = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 		total_post += mics_post;
@@ -103,24 +122,142 @@ void UnitTest::parse_sent(string sent) {
 			cout << "  *Parse: " << mics_parse << " Make: " << mics_make << " Unify: " << mics_unify << " Trans: " << mics_trans << " Post: " << mics_post << '\n';
 	}
 	catch (UnifyError& e) {
-		cout << "  *UnifyError: " << e.what() << nl;
+		cout << "  UnifyError: " << e.what() << nl;
+	}
+	catch (PostProcessError& e) {
+		cout << "  PostProcessError: " << e.what() << nl;
 	}
 	catch (ParseError& e) {
-		cout << "  *ParseError: " << e.what() << nl;
+		cout << "  ParseError: " << e.what() << nl;
+	}
+}
+void UnitTest::test_sent(string line) { // 0:Skip 1:Ignore 2:Error 3:NOK 4:OK 
+	TreeNode* ptree = nullptr, * utree = nullptr, * ttree = nullptr;
+
+	ltrim(line);
+	if (line.empty() || line[0] == '#')
+		return;
+	auto io = split_strip(line, '@');
+	if (io.size() != 2) {
+		cerr << "Invalid test sentence: " << line << nl;
+		return;
+	}
+	auto expects = split_strip(io[1], '|');
+	if (!expects.size()) {
+		cerr << "Invalid expected sentence: " << line << nl;
+		return;
+	}
+	cout << nl << io[0] << " @ " << io[1] << '\n';
+	case_cnt++;
+
+	try {
+
+		auto start = std::chrono::system_clock::now();
+		parser->parse(io[0]);
+		auto end = std::chrono::system_clock::now();
+		auto mics_parse = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+		total_parse += mics_parse;
+
+		start = std::chrono::system_clock::now();
+		ptree = parser->make_tree(shared);
+		end = std::chrono::system_clock::now();
+		auto mics_make = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+		total_make += mics_make;
+		//if (dot)
+		//	dot_print(fname + ".parse.dot", ptree, true, false);
+
+		//if (debug >= 1)
+		//	print_tree(cout, ptree, true, true, false);
+
+		start = std::chrono::system_clock::now();
+		utree = unify_tree(ptree, shared);
+		end = std::chrono::system_clock::now();
+		auto mics_unify = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+		total_unify += mics_unify;
+		//if (dot)
+		//	dot_print(fname + ".unify.dot", utree, true, false);
+
+		//if (debug >= 1)
+		//	print_tree(cout, utree, true, true, false);
+
+		start = std::chrono::system_clock::now();
+		ttree = parser->translate_tree(utree, shared);
+		end = std::chrono::system_clock::now();
+		auto mics_trans = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+		total_trans += mics_trans;
+		//if (dot)
+		//	dot_print(fname + ".trans.dot", ttree, false, true);
+
+		//if (debug >= 1)
+		//	print_tree(cout, ttree, true, true, true);
+
+		EnumVec results;
+		start = std::chrono::system_clock::now();
+		convert(cout, ttree, parser.get(), results, show_trans_expr);
+		end = std::chrono::system_clock::now();
+		auto mics_post = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+		total_post += mics_post;
+
+		bool found = false;
+		for (auto& [s, cost] : results) {
+			for (auto& expect : expects)
+				if (s == expect) {
+					found = true;
+					break;
+				}
+			cout << " *" << s << " {" << cost << "}\n";
+		}
+
+		if (found) {
+			success_cnt++;
+			cout << "  OK\n";
+		}
+		else
+			cout << "  NOK\n";
+
+		if (profile >= 2)
+			cout << "  *Parse: " << mics_parse << " Make: " << mics_make << " Unify: " << mics_unify << " Trans: " << mics_trans << " Post: " << mics_post << '\n';
+
+	}
+	catch (UnifyError& e) {
+		cout << "  UnifyError: " << e.what() << nl;
+	}
+	catch (PostProcessError& e) {
+		cout << "  PostProcessError: " << e.what() << nl;
+	}
+	catch (ParseError& e) {
+		cout << "  ParseError: " << e.what() << nl;
 	}
 
+	//if (raw_dot) {
+	//	ofstream os(fname + ".raw.dot");
+	//	parser->print_parse_dot(os);
+	//}
+	//if (raw_dot) {
+	//	ofstream os(fname + ".rawall.dot");
+	//	parser->print_parse_dot_all(os);
+	//}
+}
+//if (profile >= 1)
+//cout << "  *Parse: " << total_parse << " Make: " << total_make << " Unify: " << total_unify << " Trans: " << total_trans << " Post: " << total_post << '\n';
+
+void UnitTest::test_file(string fname) {
+	ifstream is(fname);
+	string line;
+	while (get_line(is, line)) {
+		test_sent(line);
+	}
 }
 void UnitTest::test_case(string fname) {
 	// loads an executes test cases from file "fname"
-	int case_cnt = 0, success_cnt = 0;
+	//int case_cnt = 0, success_cnt = 0;
 	ifstream is(fname);
 	if (!is) {
 		cout << "Cannot open " << fname << nl;
 		return;
 	}
-	long long total_parse = 0, total_make = 0, total_unify = 0, total_trans = 0, total_post = 0;
 	string line;
-	unique_ptr<Parser> parser;
+	
 	TreeNode *ptree = nullptr, *utree = nullptr, *ttree = nullptr;
 	get_line(is, line);
 	string error;
@@ -240,107 +377,17 @@ void UnitTest::test_case(string fname) {
 			if (debug_mem >= 1)
 				cout << "Parse-end FeatList count: " << FeatList::count << endl;
 		}
+		else if (command == "###test_file") {
+			if (cmd_params.size() != 2) {
+				cerr << "test_file command needs a file name parameter" << endl;
+				continue;
+			}
+			test_file(cmd_params[1]);
+			get_line(is, line);
+		}
 		else if (command == "###test") {
 			while (get_line(is, line) && line.substr(0, 3) != "###") {
-				ltrim(line);
-				if (line.empty() || line[0] == '#')
-					continue;
-				auto io = split_strip(line, ':');
-				if (io.size() != 2) {
-					cerr << "Invalid test sentence: " << line << nl;
-					continue;
-				}
-				auto expects = split_strip(io[1], '|');
-				if(!expects.size()) {
-					cerr << "Invalid expected sentence: " << line << nl;
-					continue;
-				}
-				cout << io[0] << " : " << io[1] << '\n';
-				case_cnt++;
-
-				try {
-					
-					auto start = std::chrono::system_clock::now();
-					parser->parse(io[0]);
-					auto end = std::chrono::system_clock::now();
-					auto mics_parse = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-					total_parse += mics_parse;
-
-					start = std::chrono::system_clock::now();
-					ptree = parser->make_tree(shared);
-					end = std::chrono::system_clock::now();
-					auto mics_make = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-					total_make += mics_make;
-					if (dot)
-						dot_print(fname + ".parse.dot", ptree, true, false);
-
-					if (debug >= 1)
-						print_tree(cout, ptree, true, true, false);
-
-					start = std::chrono::system_clock::now();
-					utree = unify_tree(ptree, shared);
-					end = std::chrono::system_clock::now();
-					auto mics_unify = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-					total_unify += mics_unify;
-					if (dot)
-						dot_print(fname + ".unify.dot", utree, true, false);
-
-					if (debug >= 1)
-						print_tree(cout, utree, true, true, false);
-
-					start = std::chrono::system_clock::now();
-					ttree = parser->translate_tree(utree, shared);
-					end = std::chrono::system_clock::now();
-					auto mics_trans = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-					total_trans += mics_trans;
-					if (dot)
-						dot_print(fname + ".trans.dot", ttree, false, true);
-
-					if (debug >= 1)
-						print_tree(cout, ttree, true, true, true);
-
-					EnumVec results;
-					start = std::chrono::system_clock::now();
-					cout << '#'; convert(cout, ttree, parser.get(), results); 
-					end = std::chrono::system_clock::now();
-					auto mics_post = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-					total_post += mics_post;
-
-					bool found = false;
-					for (auto& [s,cost] : results) {
-						for (auto& expect : expects)
-							if (s == expect) {
-								found = true;
-								break;
-							}
-						cout << " *" << s << " {" << cost << "}\n";
-					}
-					
-					if (found) {
-						success_cnt++;
-						cout << "  OK\n";
-					}
-					else
-						cout << "  NOK\n";
-
-					if (profile >= 2)
-						cout << "  *Parse: " << mics_parse << " Make: " << mics_make << " Unify: " << mics_unify << " Trans: " << mics_trans << " Post: " << mics_post << '\n';
-
-				}
-				catch (UnifyError& e) {
-					cout << "  *UnifyError: " << e.what() << nl;
-				}
-				catch (ParseError& e) {
-					cout << "  *ParseError: " << e.what() << nl;
-				}
-				if (raw_dot) {
-					ofstream os(fname + ".raw.dot");
-					parser->print_parse_dot(os);
-				}
-				if (raw_dot) {
-					ofstream os(fname + ".rawall.dot");
-					parser->print_parse_dot_all(os);
-				}
+				test_sent(line);
 			}
 			if (profile >= 1)
 				cout << "  *Parse: " << total_parse << " Make: " << total_make << " Unify: " << total_unify << " Trans: " << total_trans << " Post: " << total_post << '\n';
@@ -374,6 +421,12 @@ void UnitTest::test_case(string fname) {
 				else if (io[0] == "dot") {
 					dot = bool(stoi(io[1]));
 				}
+				else if (io[0] == "unknown") {
+					unknown = bool(stoi(io[1]));
+				}
+				else if (io[0] == "show_trans_expr") {
+					unknown = bool(stoi(io[1]));
+				}
 			}
 			if (!is) // eof
 				line = "";
@@ -395,7 +448,7 @@ void UnitTest::test_case(string fname) {
 					print_tree(out, ttree, true, true, true);
 				else if (command == "###enum") {
 					EnumVec results;
-					convert(cout, ttree, parser.get(), results);
+					convert(cout, ttree, parser.get(), results, false);
 					for (auto&[s, cost] : results)
 						out << s << '\n';
 				}

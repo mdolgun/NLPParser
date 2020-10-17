@@ -21,7 +21,7 @@ struct GrammarParser {
 	// because we cannot override pointer operator==, we had to implement it as vector of Rule references
 	GrammarParser(Grammar* _grammar) :
 		//SYMBOL(R"#((\$?[_A-Z][_A-Za-z0-9$]*'*(?:-[_A-Za-z0-9$]+)?)|("[^"]*"|\$?[^|{:[_A-Z#!][\S]*))#"),
-		SYMBOL(R"#((\$?[_A-Z][_A-Za-z0-9$]*'*(?:-[_A-Za-z0-9$]+)?)|("[^"]*"|\$?[^|{:[_A-Z#!][^|{:[#!\s]*))#"),
+		SYMBOL(R"#((\$?[_A-Z][_A-Za-z0-9$]*'*(?:-[_A-Za-z0-9$]+)?)|"([^"]*)"|(\$?[^|{:[_A-Z#!"][^|{:[#!\s]*))#"),
 		NONTERM(R"#(\$?[_A-Z][_A-Za-z0-9$]*'*)#"),
 		FEAT(R"#([?!]?[*+-]?[-_A-Za-z0-9]*)#"),
 		INTEGER(R"#(-?[1-9][0-9]*)#")

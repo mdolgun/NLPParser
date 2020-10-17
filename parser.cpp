@@ -720,6 +720,8 @@ void Parser::compile() {
 	*/
 	string tail("*");
 	tail_id = symbol_table.add(tail, false);
+	string unknown("U");
+	unknown_id = symbol_table.add(unknown, true);
 
 	n_symbols = symbol_table.size();
 	ruledict.resize(n_symbols); // ruledict stores the set of rules a nonterminal can derive (i.e. is head)
@@ -1043,7 +1045,8 @@ void Parser::add_edge(int start_pos, int start_state, int symbol_id, int end_pos
 		}
 	}
 }
-void Parser::parse(string input_str) {
+FeatPtr empty_feat(new FeatList());
+void Parser::parse(string input_str, int unknown) {
 	// parses input string using current grammar, throwing ParseError if parsing fails, the parse tree can be later retrieved from "edges"
 	input.clear();
 
@@ -1222,6 +1225,16 @@ void Parser::parse(string input_str) {
 					for (auto[left_pos, rule] : dict_search) {
 						cout << "SearchResult pos:" << left_pos << " Rule: " << *rule << nl;
 					}
+				}
+				if (unknown && dict_search.size() == 0) { // either unknown word or part of a multi-word entry
+					Symbol* head = new Symbol("U", true, unknown_id);
+					Symbol* word = new Symbol(input[pos], false, -1);
+					Prod* left = new Prod();
+					left->emplace_back(word);
+					Prod* right = new Prod();
+					right->emplace_back(word);
+					Rule* dummy = new Rule(head, left, right, empty_feat, nullptr);
+					dict_search.emplace_back(1, dummy);
 				}
 				for (auto state : active) {
 					int next_state = get_next_state(state, token); 
